@@ -41,9 +41,10 @@ module kirisame::quarantine_umbrella_tests {
         let (_, _, owner, pending, escrow, holder, current_station, _, _, _, deadline, owner_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
         let (_, amount, condition_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
         let (quarantined, forfeited) = umbrella::quarantine_snapshot_for_testing(&asset);
-        assert!(quarantined && forfeited && !is_pending);
+        assert!(quarantined && !forfeited && !is_pending);
+        assert!(umbrella::condition_status_for_testing(&asset) == 3);
         assert!(owner == option::some(@0xA) && amount == 30_000_000 && condition_cycle == 0);
-        assert!(pending == 0 && escrow == 0 && holder.is_none());
+        assert!(pending == 30_000_000 && escrow == 0 && holder.is_none());
         assert!(current_station == option::some(object::id(&station)));
         assert!(owner_count == 1 && deadline == 120_000);
         test_scenario::return_shared(asset);
@@ -54,10 +55,9 @@ module kirisame::quarantine_umbrella_tests {
         transfer::public_transfer(other_station, @0xD);
         scenario.next_tx(@0xD);
         let refund = scenario.take_from_address<Coin<SUI>>(@0xB);
-        let reserve = scenario.take_from_address<Coin<SUI>>(@0xD);
-        assert!(refund.value() == 100_000_000 && reserve.value() == 30_000_000);
+        assert!(refund.value() == 100_000_000);
         coin::burn_for_testing(refund);
-        coin::burn_for_testing(reserve);
+        assert!(!test_scenario::has_most_recent_for_address<Coin<SUI>>(@0xD));
         assert!(!test_scenario::has_most_recent_for_address<Coin<SUI>>(@0xA));
         assert!(!test_scenario::has_most_recent_for_address<Coin<SUI>>(@0xC));
         assert!(!test_scenario::has_most_recent_for_address<Coin<SUI>>(@0xE));

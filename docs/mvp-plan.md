@@ -33,7 +33,7 @@ Her initial collateral protects the first customer against unusable supply:
 | First customer's outcome | What happens to Alice's collateral |
 | --- | --- |
 | Inspection ends without rejection | Becomes eligible for the next sweep; paid by the sweep or the buyer’s eligible normal return. Expiry alone does not pay it. |
-| Station confirms a fault return within the inspection window | Sent to the maintenance reserve |
+| Station records an inspection rejection within the inspection window | Held for final review by the collecting admin; approved refunds are swept, otherwise the hold goes to the maintenance reserve |
 | Nobody purchases the umbrella | Remains pending |
 | Alice registers it but never deposits it | Remains pending; cancellation is outside this MVP |
 
@@ -66,11 +66,12 @@ For this demo, newly registered stations issue their capability to the registeri
 | --- | --- |
 | Current station name, ID and location | Show the selected station's display name, human-readable location and map coordinates, or “No station selected.” |
 | Normal-bin inventory | Live list of `DOCKED` umbrellas at this station; distinguish newly supplied and returned items using `owner_count` (zero for new supply, positive for returned items). |
-| Quarantine-bin inventory | Live list of `QUARANTINED` umbrellas physically recorded at this station. |
+| Quarantine-bin inventory | Live list of `QUARANTINED` umbrellas at this station, with awaiting-review, approved, paid or forfeited condition status. |
+| **REVIEW QUARANTINE** | During collection, use AdminCap to approve the prior refund or confirm unsuitability and forfeit the hold. Each decision is final. |
 | **SCAN RETURNED OR SUPPLIED UMBRELLA** | Disabled without a current station. Opens a QR scanner modal; new supply activates, an eligible purchased umbrella returns. |
-| **SCAN QUARANTINED UMBRELLA** | Disabled without a current station. Opens a QR scanner modal for a customer's fault return during inspection. |
+| **SCAN QUARANTINED UMBRELLA** | Disabled without a current station. Opens a QR scanner modal for a customer’s inspection-window rejection. |
 | **REGISTER NEW STATION** | Opens fields for display name, human-readable location, latitude and longitude with **CONFIRM / DENY**. Confirm requests the admin signature; success opens the station-ID modal. |
-| **SETTLE PAYMENTS** | Reads all registered umbrellas, previews eligible condition-hold payouts and zero-buyback purchase settlements, then requests John’s signature for bounded transactions. No physical scan or current-station selection required. |
+| **SETTLE PAYMENTS** | Reads all registered umbrellas, previews eligible condition-hold payouts, approved quarantine refunds and zero-buyback purchase settlements, then requests John’s signature for bounded transactions. No physical scan or current-station selection required. |
 | **SET CURRENT STATION** | Opens the station dropdown with **CONFIRM / DENY**. Confirm changes only this device's selection. |
 
 Docking and quarantine require only the selected station’s StationCap. Recheck access on wallet/account changes and before each submission. “Quarantined” in the second scan button means putting a currently purchased umbrella into quarantine; scanning an already quarantined umbrella must not refund it again.
@@ -84,7 +85,7 @@ Inventory must reflect confirmed chain state. Remove umbrellas when checkout suc
 | `CREATED` | Activate new supply at the selected station. |
 | `HELD`, inspection ended and positive buyback | Pay any still-pending prior hold and settle the normal return in one transaction. |
 | `HELD`, zero buyback | Reject the return even before payment settlement. Show “Sold — payment settlement pending.” |
-| `HELD`, inspection window still open | Explain that normal return is unavailable until inspection ends; a faulty item can use the quarantine scanner. |
+| `HELD`, inspection window still open | Explain that normal return is unavailable until inspection ends; an unacceptable item can use the quarantine scanner. |
 | `DOCKED` | Show “Already deposited”; do not create a duplicate deposit or silently move it between stations. |
 | `QUARANTINED` or `SOLD` | No normal-bin action. SOLD is a permanently invalid, read-only record. |
 
@@ -101,7 +102,7 @@ The CLIENT tab serves both customers and suppliers. Its main page shows the conn
 | Per-umbrella information | Umbrella ID, checkout station name, inspection or usage status, time until buyback reaches zero, estimated refund now, and condition hold. |
 | Pending refunds | Itemized supplier collateral or return condition holds belonging to this wallet, plus a total and successor inspection or settlement status. No customer action is needed. |
 | Finalized purchases | Umbrellas kept by this wallet after zero-buyback sale settlement; show SOLD / Invalid, with no return, purchase or other action. |
-| Latest refund results | Show “Refund paid” or “Return quarantined” from each umbrella where this wallet is last owner. A later normal return replaces that record. |
+| Latest refund results | Show “Refund paid” or “Condition hold forfeited” from each umbrella where this wallet is last owner. A later normal return replaces that record. |
 | Supplied umbrellas | Minimal list for reopening printable QR tags and seeing whether the umbrella is awaiting deposit or already in circulation. |
 | **PURCHASE UMBRELLA** | Opens the camera scanner and sends the decoded umbrella to its purchase confirmation page. |
 | **SUPPLY UMBRELLA** | Opens the supply modal described in section 1; a successful supply transaction reveals the printable QR. |
@@ -117,7 +118,7 @@ Opening an umbrella URL must not ask Bob to scan the umbrella a second time.
 
 Show the umbrella ID, supplier, current station, availability, purchase price, usage rate, maximum condition hold, and these inspection terms:
 
-> You have two minutes after purchase to inspect this umbrella. If it is faulty, physically return it to the station immediately. The station’s quarantine transaction must execute before the inspection window ends for a full purchase refund; handing it back or starting a scan alone is not enough. Usage charges start when the window ends. A normal return may leave part of your refund pending. After the next customer's inspection ends without rejection, the next payment sweep sends that amount to your wallet; their normal return also pays it if still pending. You do not need to sign or claim.
+> You have two minutes after purchase to inspect this umbrella. If it is unacceptable to you, physically return it to the station immediately. The station’s quarantine transaction must execute before the inspection window ends for a full purchase refund; handing it back or starting a scan alone is not enough. Usage charges start when the window ends. A normal return may leave part of your refund pending. If the next customer rejects it during inspection, your hold waits for the admin’s final suitability review and may be forfeited for wear or other unacceptability. Otherwise, after their inspection ends, the next payment sweep sends that amount to your wallet; their normal return also pays it if still pending. You do not need to sign or claim.
 
 The page has **CONFIRM / DENY**. If Bob needs to connect his wallet, preserve the umbrella URL through that step. Confirm requests his signature for the exact purchase payment; deny returns to the client main page without sending a transaction. Purchase is enabled only while the latest known state is `DOCKED`, and the contract enforces that rule again at execution.
 
@@ -138,19 +139,21 @@ The on-screen clock is an estimate. The contract uses Sui Clock at transaction e
 
 ## 4. Bob's two return paths
 
-Every confirmed purchase includes a two-minute inspection window. “Approves the umbrella” means confirming the purchase, not a separate acceptance transaction. After the window, the holder is responsible for damage and cannot use the full-refund fault-return path. A normal return retains the successor-checked condition hold; no additional damage charge or dispute flow is introduced. There is no ACCEPT button, shortened inspection option, or normal return while the window is open.
+The condition hold guarantees continued acceptability, not freedom from intentional damage. Ordinary wear, a ratty appearance, breakage or other undesirability can all justify an inspection-window rejection. There is no separate wear exemption or requirement to prove who caused the condition. The purchase page must explain that a returning customer may bear the cost when an aging umbrella becomes unacceptable.
+
+Every confirmed purchase includes a two-minute inspection window. “Approves the umbrella” means confirming the purchase, not a separate acceptance transaction. After the window, the holder accepts responsibility for the umbrella’s continued acceptability and cannot use the full-refund inspection-rejection path. A normal return retains the successor-checked condition hold; no additional condition charge or dispute flow is introduced. There is no ACCEPT button, shortened inspection option, or normal return while the window is open.
 
 ### Path A: Bob rejects the umbrella
 
-1. Bob inspects it immediately and finds a fault.
+1. Bob inspects it immediately and finds it unacceptable—for example, worn, ratty, broken or otherwise undesirable.
 2. He physically gives it back to John before the inspection window ends.
 3. John presses **SCAN QUARANTINED UMBRELLA** and scans the tag.
-4. The station phone shows a fault-return action and requests John's signature.
+4. The station phone shows an inspection-rejection action and requests John's signature.
 5. The transaction must execute before the onchain deadline. It verifies the station capability and umbrella state.
-6. The contract refunds Bob's entire purchase, sends the prior condition hold to the maintenance reserve, and changes the umbrella to `QUARANTINED` at John's selected station.
+6. The contract refunds Bob's entire purchase, freezes the prior condition hold for admin review, and changes the umbrella to `QUARANTINED` at John's selected station.
 7. John sees success and puts it in the quarantine bin. Both phones refresh.
 
-For a first purchase, the forfeited prior hold is Alice's supplier collateral. On later purchases, it is the previous customer's condition hold. Bob receives no extra reward for rejecting. Starting the scan before the deadline does not guarantee a refund if the transaction executes after it.
+For a first purchase, the reviewed hold is Alice's supplier collateral. On later purchases, it is the previous customer's condition hold. Bob receives no extra reward for rejecting. Starting the scan before the deadline does not guarantee a refund if the transaction executes after it.
 
 ### Path B: Bob uses and returns the umbrella
 
@@ -167,15 +170,15 @@ The story branches again:
 ### Path B1: Carl rejects the umbrella
 
 1. Carl gives the umbrella back to John during Carl's inspection window.
-2. John presses **SCAN QUARANTINED UMBRELLA**, scans it, and signs the fault-return transaction. It must execute before Carl's deadline.
-3. Carl receives his full purchase payment back. Bob's pending condition hold goes to the maintenance reserve, and the umbrella becomes `QUARANTINED` at the receiving station.
-4. John puts it in the quarantine bin. Bob receives none of the pending amount. His client removes it from the pending total and shows the latest result: **Return quarantined — pending refund not paid**.
+2. John presses **SCAN QUARANTINED UMBRELLA**, scans it, and signs the inspection-rejection transaction. It must execute before Carl's deadline.
+3. Carl receives his full purchase payment back. Bob's pending condition hold is frozen for admin review, and the umbrella becomes `QUARANTINED` at the receiving station.
+4. John puts it in the quarantine bin. Bob’s client shows **Awaiting admin review** and keeps the hold in pending totals. During collection, the collecting admin either approves Bob’s refund or confirms the umbrella is unsuitable for circulation. Approval queues the hold for the existing sweep; unsuitability forfeits it to the fixed maintenance reserve.
 
-That result describes the outcome of Bob's return; it does not claim who damaged the umbrella. Bob keeps the 0.0106 SUI immediate refund from his five-minute return. Any immediate refund already paid stays paid. Only the pending condition hold depends on Carl's inspection.
+That result describes the outcome of Bob's return; it does not establish who caused its condition or distinguish wear from intentional damage. Bob keeps the 0.0106 SUI immediate refund from his five-minute return. Any immediate refund already paid stays paid. Only the pending condition hold depends on Carl’s inspection and, after a rejection, the admin’s final review.
 
 ### Path B2: Carl does not reject the umbrella
 
-1. Carl's two-minute inspection window expires without a successful fault return. The umbrella remains HELD and usage accrues from the deadline automatically by calculation.
+1. Carl's two-minute inspection window expires without a successful inspection rejection. The umbrella remains HELD and usage accrues from the deadline automatically by calculation.
 2. Bob's pending refund becomes **Awaiting payment sweep**. Expiry alone does not transfer funds.
 3. John runs **SETTLE PAYMENTS**. The contract checks the current HELD purchase, inspection deadline and pending condition record, then pays Bob without his signature.
 4. The contract records PAID. While buyback remains positive, Carl stays HELD and his purchase escrow and timer are unchanged.
@@ -193,7 +196,9 @@ Alice's initial collateral follows the same sweep rules after the first customer
 | Next customer inspecting | Carl's inspection countdown. |
 | Awaiting payment sweep | Inspection ended, prior hold still belongs to Bob, and payment is pending. No customer action needed. |
 | Refund paid | Retained amount and PAID status in latest refund results; removed from pending total. |
-| Return quarantined | Pending amount forfeited after Carl's fault return; retain the latest result. |
+| Awaiting admin review | Quarantined; hold remains escrowed and cannot be swept yet. |
+| Refund approved | Admin approved the hold for the next sweep; no customer action. |
+| Condition hold forfeited | Admin confirmed unsuitability for circulation; hold sent to reserve and removed from pending totals. |
 
 A sweep and a station return can race. The contract evaluates the current state at execution and pays each condition hold once. If the return executes first, the sweep skips the DOCKED umbrella and preserves its new hold. Refresh confirmed outcomes rather than treating an already-completed payout as lost funds.
 
@@ -247,12 +252,12 @@ The supplier earns usage revenue, not the entire 0.10 SUI purchase payment. Her 
 
 ### SETTLE PAYMENTS
 
-After verifying admin access, the station tab queries the registry and reads **all registered umbrellas**, including those currently held away from a station. It derives due work from chain timestamps, not browser-local saved timers:
+After verifying admin access, the station tab queries the registry and reads **all registered umbrellas**, including those currently held away from a station and quarantined umbrellas awaiting review or payment. It derives due work from chain timestamps, not browser-local saved timers:
 
-1. Select `HELD` umbrellas whose inspection has ended and which have either a positive PENDING condition hold or zero buyback.
+1. Select `HELD` umbrellas whose inspection has ended and which have either a positive PENDING condition hold or zero buyback. Also select QUARANTINED umbrellas with REFUND_APPROVED holds.
 2. Pay any PENDING prior condition hold to its recorded owner and retain its amount, owner and cycle with PAID status. While buyback is positive, leave custody, current purchase escrow and the timer unchanged.
 3. If buyback is zero, also distribute current purchase escrow and record `SOLD` atomically.
-4. Skip open inspections and other states. Never release a DOCKED umbrella's hold without a successor purchase. Repeated sweeps cannot pay a hold or sale twice.
+4. For QUARANTINED + REFUND_APPROVED, pay the hold and record PAID without changing custody. Skip AWAITING_REVIEW, finalized quarantine results, open inspections and other states. Never release a DOCKED umbrella's hold without a successor purchase. Repeated sweeps cannot pay a hold or sale twice.
 
 Show a preview with affected umbrella IDs, actions and recipients. John confirms and signs. Use bounded transactions or small batches rather than one unbounded transaction over the whole registry. Re-read before each submission and show per-item success, already-settled, failure or retry status. The sweep evaluates the currently stored purchase and deadline at execution; it does not attest physical custody or take an expected cycle. A failed batch rolls back its operations; refetch and retry only still-eligible items. Disable duplicate submissions. Payment recipients come from the contract, not the current station selection.
 
@@ -293,7 +298,7 @@ Keep the original supplier plus the last and current owners. “Owner” here me
 | `active_escrow: Balance<SUI>` | Current buyer's purchase payment awaiting return or sale settlement. |
 | `pending_condition: Balance<SUI>` | Condition funds payable to `last_owner` if the successor inspection succeeds. |
 | `last_condition_amount` | Original amount of the latest condition record; retain after payment or forfeiture so the UI can display it. |
-| `last_condition_status` | PENDING, PAID or FORFEITED. Supply and accepted normal returns create positive condition records. |
+| `last_condition_status` | PENDING, AWAITING_REVIEW, REFUND_APPROVED, PAID or FORFEITED. Supply and accepted normal returns create positive condition records. |
 | `last_condition_cycle` | Purchase that created this record; zero identifies the supplier's original collateral. |
 
 `last_owner` is the owner of the latest condition record. `current_owner` is the buyer currently holding the umbrella, if any. Two addresses identify the participants, but the amount and outcome must also survive balance clearing; a zero balance alone cannot distinguish payment from forfeiture.
@@ -309,7 +314,9 @@ Keep the original supplier plus the last and current owners. “Owner” here me
 | Sweep after inspection | Pay pending balance to `last_owner`; set PAID and clear the balance. Retain last owner, amount and cycle. Current owner and HELD state are unchanged. |
 | Bob returns normally | First pay the prior hold if still pending, after validating inspection ended and positive buyback. Then set `last_owner = Bob`, clear current owner, and replace the condition record with Bob's retained amount and ownership cycle. Mark PENDING; the positive-buyback return rule and positive condition bond guarantee a positive hold. |
 | Carl checks out | Set current owner to Carl and state HELD; record his purchase time and deadline; increment owner count. Keep Bob as last owner with his pending record. |
-| Carl rejects | Refund active escrow to Carl; send Bob's pending balance to reserve; set Bob's condition status FORFEITED and retain its amount/cycle. Clear current owner and record quarantine station. |
+| Carl rejects | Refund active escrow to Carl; freeze Bob’s hold as AWAITING_REVIEW and retain its owner/amount/cycle. Clear current owner and record quarantine station. |
+| Collecting admin reviews | Require AdminCap and QUARANTINED + AWAITING_REVIEW; verify the supplied Station matches the recorded receiving station. Approve refund → REFUND_APPROVED, funds remain escrowed. Unsuitable → pay fixed reserve and record FORFEITED. Both decisions are final. |
+| Sweep approved review | Pay the recorded prior owner and set PAID; keep QUARANTINED and retain the condition record. |
 | Carl inspection ends without rejection | Bob’s hold becomes eligible for the sweep; no immediate transfer or state mutation. Carl remains current owner in HELD. |
 | Sale settlement | Pay the prior condition hold first if still pending. Keep its latest condition record, retain current owner as the final buyer, clear active escrow and set SOLD, permanently invalid and read-only. |
 
@@ -329,13 +336,13 @@ This is **latest-result storage, not a complete refund history**. Bob's outcome 
 
 The coordinate offset keeps signed geographic coordinates in Move's unsigned integer types while preserving six decimal places. The dapp converts ordinary latitude/longitude values at the transaction boundary and decodes them for display. Station creation validates both ranges. Store the station's authorization separately in its `StationCap`. A public registry lists stations and umbrella IDs. Do not derive authority from whichever station the UI selects.
 
-**Discovery:** read registered umbrella objects directly and filter by `current_owner`, `last_owner`, `supplier`, state and station. Active purchases require current owner plus HELD; finalized purchases require current owner plus SOLD. Pending refunds require last owner, PENDING status and positive pending balance. Latest outcomes require last owner and PAID/FORFEITED status. Bin inventory requires both the appropriate state and physical station ID. These lists survive page refresh without events, an indexer or a database.
+**Discovery:** read registered umbrella objects directly and filter by `current_owner`, `last_owner`, `supplier`, state and station. Active purchases require current owner plus HELD; finalized purchases require current owner plus SOLD. Pending refunds require last owner, positive pending balance and PENDING, AWAITING_REVIEW or REFUND_APPROVED status. Latest outcomes require last owner and PAID/FORFEITED status. Quarantine alone does not imply forfeiture. Bin inventory requires both the appropriate state and physical station ID. These lists survive page refresh without events, an indexer or a database.
 
 **Protocol configuration:** store the maintenance reserve destination onchain. Keep station payout addresses in public station records and snapshot the checkout payout address on the umbrella at checkout. Read the return payout from the authorized receiving station. Use one configured registry and reserve destination for the demo. Bind StationCaps to that registry and validate the capability against the supplied station record; do not trust a UI-provided station ID or payout address.
 
 ### Actions and authorization
 
-Station registration and payment settlement require this deployment's AdminCap. Physical attestations require only the matching StationCap. There is no `user_claim_refund` entry point. The sweep releases eligible prior holds through the same private payout helper used by normal returns and sale settlement. It pays only recorded recipients and cannot attest custody.
+Station registration, final quarantine review and payment settlement require this deployment's AdminCap. Physical attestations require only the matching StationCap. There is no `user_claim_refund` entry point. The sweep releases eligible prior holds through the same private payout helper used by normal returns and sale settlement. It pays only recorded recipients and cannot attest custody.
 
 | User action | Function | Signer / permission | Result |
 | --- | --- | --- | --- |
@@ -344,15 +351,15 @@ Station registration and payment settlement require this deployment's AdminCap. 
 | Supply umbrella | `user_create_umbrella` | Alice; anyone can supply | Exact supplier bond escrowed; shared umbrella in `CREATED`; ID added to discovery. |
 | Scan newly supplied umbrella | `station_dock_umbrella` | Operator with matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
 | Confirm purchase | `user_undock_umbrella` | Bob, exact purchase payment | Store holder/station/deadline; `DOCKED → HELD`. |
-| **SETTLE PAYMENTS** | `admin_settle_pending_payments` | John with `AdminCap`; HELD and inspection ended; no physical attestation | Pay any pending prior hold. Preserve current purchase while buyback is positive; at zero buyback also distribute current escrow, retain final buyer and record SOLD. |
+| **SETTLE PAYMENTS** | `admin_settle_pending_payments` | John with `AdminCap`; eligible HELD purchase or QUARANTINED + REFUND_APPROVED; no physical attestation | Pay an eligible prior hold, including approved quarantine refunds. Preserve current purchase while buyback is positive; at zero buyback also distribute current escrow, retain final buyer and record SOLD. |
 | Scan normal return | `station_dock_umbrella` | Operator with receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
-| Scan fault return | `station_quarantine_umbrella` | Operator with receiving `StationCap`, before deadline | Full current refund, prior hold to reserve, record station; `HELD → QUARANTINED`. |
+| Scan inspection rejection | `station_quarantine_umbrella` | Operator with receiving `StationCap`, before deadline | Full current refund, prior hold AWAITING_REVIEW, record station; `HELD → QUARANTINED`. |
+| Review quarantined umbrella | `admin_review_quarantined_umbrella` | AdminCap; matching recorded receiving Station; expected owner count; QUARANTINED + AWAITING_REVIEW | `approve_refund = true` queues REFUND_APPROVED for the sweep; false sends the hold to the fixed reserve and records FORFEITED. |
+| Print, scan, view or deny | None | No economic transaction | Navigation or local UI only until a confirmed signed action. |
 
 `station_dock_umbrella` handles both first deposit and normal return. It takes the receiving `StationCap` and `Station`, the umbrella, the expected current owner count, `Clock`, and transaction context. The station capability must reference the supplied station object. First deposits preserve the supplier collateral and its cycle-zero condition record. Customer returns settle payments before docking and replace the condition record with the returning customer's hold. Both paths reject a stale owner count; already docked, quarantined and sold umbrellas cannot be docked again.
 
-| Print, scan, view or deny | None | No economic transaction | Navigation or local UI only until a confirmed signed action. |
-
-At the exact inspection deadline, fault return is closed and normal return and swept condition payouts are allowed; normal return additionally requires positive buyback. At the exact zero-buyback cutoff, normal return is closed even before sale settlement. A chain transaction is required to release money or change stored state; time passing alone does neither. The state is HELD from purchase onward; inspection, charged usage, and effective sale before cleanup are all derived from time and buyback.
+At the exact inspection deadline, inspection rejection is closed and normal return and swept condition payouts are allowed; normal return additionally requires positive buyback. At the exact zero-buyback cutoff, normal return is closed even before sale settlement. A chain transaction is required to release money or change stored state; time passing alone does neither. The state is HELD from purchase onward; inspection, charged usage, and effective sale before cleanup are all derived from time and buyback.
 
 Implement integer accounting with overflow-safe fee capping. For normal returns, floor the supplier and checkout-station shares, then give the remaining usage revenue to the return station so all base units are accounted for. If checkout and return are at the same station, that station receives both shares. Zero-buyback umbrellas cannot return and create no new condition record; sale settlement preserves the prior owner’s settled result.
 
@@ -364,7 +371,7 @@ If a submitted transaction's result is temporarily unknown, retain its digest an
 
 QR readers accept the dapp's umbrella URL format and validate the object against the expected package and payment type. Invalid tags show a clear error. Offer camera retry and a paste-URL fallback for demo reliability. Neither scanner should navigate blindly to arbitrary QR contents.
 
-Pending refunds show “Supplier collateral awaiting first inspection” when `last_condition_cycle` is zero, otherwise “Return hold awaiting next inspection.” After settlement, remove the amount from pending totals and show PAID as **Refund paid**, or FORFEITED as **Return quarantined — pending refund not paid**. Read these results from the umbrella's latest condition record, retaining its amount after the balance is cleared. Show this section as **Latest refund results**, not a complete history. A later normal return replaces that record as specified in section 7. When replacing a record, display only the new owner’s result; do not attribute the previous owner’s payout to them.
+Pending refunds show “Supplier collateral awaiting first inspection” when `last_condition_cycle` is zero, otherwise “Return hold awaiting next inspection.” After settlement, remove the amount from pending totals and show PAID as **Refund paid**, or FORFEITED as **Condition hold forfeited — unsuitable for circulation**. Show AWAITING_REVIEW as **Awaiting admin review** and REFUND_APPROVED as **Refund approved — awaiting sweep**; both remain in pending totals. Read these results from the umbrella's latest condition record, retaining its amount after the balance is cleared. Show this section as **Latest refund results**, not a complete history. A later normal return replaces that record as specified in section 7. When replacing a record, display only the new owner’s result; do not attribute the previous owner’s payout to them.
 
 Before signing a station return, re-read the umbrella and pass the expected ownership cycle for onchain validation. A delayed physical attestation must not apply to a newer customer. The sweep instead checks the current state and deadline at execution and sends funds only to the currently recorded recipients. Validate against current `owner_count`, not `last_condition_cycle`, which identifies the earlier purchase that created the hold. Price estimates use the current time; final refund amounts use the transaction execution timestamp.
 
@@ -402,10 +409,10 @@ Before registration, publish the package using John's wallet so he receives `Adm
 
 Use two supplied umbrellas or run the normal-return story first; a quarantined umbrella cannot be bought again in this MVP.
 
-- **Fault branch:** Bob hands it back immediately; John uses **SCAN QUARANTINED UMBRELLA**, signs and confirms execution before the deadline, then puts it in the quarantine bin. Show Bob's full refund and the prior hold's forfeiture.
+- **Rejection branch:** Bob hands it back immediately; John uses **SCAN QUARANTINED UMBRELLA**, signs and confirms execution before the deadline, then puts it in the quarantine bin. Show Bob’s full refund and the prior hold awaiting admin review.
 - **Normal branch:** Bob returns five minutes after purchase. John scans with **SCAN RETURNED OR SUPPLIED UMBRELLA** and signs. Put it in the normal bin and show Bob's pending refund.
 - **Carl purchases:** switch the client phone to Carl. Scan Bob's returned umbrella with the default camera and confirm purchase.
-- **Carl rejects:** John fault-scans, signs, and confirms execution before Carl's deadline. Show Carl's full refund and reconnect Bob to show **Return quarantined**.
+- **Carl rejects:** John scans the rejected umbrella, signs, and confirms execution before Carl's deadline. Show Carl’s full refund and reconnect Bob to show **Awaiting admin review**. During collection, review the umbrella with AdminCap. Demonstrate approval followed by a sweep and, on a separate umbrella, a final unsuitability decision and forfeiture.
 - **Carl does not reject:** on a separate run, let Carl's inspection expire. Show Bob’s **Awaiting payment sweep** status. John runs **SETTLE PAYMENTS**; reconnect Bob to show **Refund paid** without a Bob signature. Verify Carl remains HELD, his active escrow is intact and his timer is unaffected while buyback is positive.
 
 Use separate prepared umbrellas or reset the story with new supply to show both Carl branches; quarantine has no recovery action. For a never-returned umbrella, wait until buyback reaches zero, first show that a return is refused before settlement, then press SETTLE PAYMENTS and show final escrow distribution and the retained SOLD / Invalid record without another buyer payment. Rescan the old QR to verify it offers no actions.
@@ -416,7 +423,7 @@ Build one complete journey at a time. The only MVP custody states are `CREATED`,
 
 1. **Station identity and supply:** use SUI payment types and MIST constants; implement registry, named station registration, capability delivery, supplier bond, umbrella creation, printable/reopenable QR, station selection, and activation. Verify supply cannot be purchased before activation.
 2. **Purchase and inspection:** implement coin selection, exact payments, common QR confirmation route, custody update, 120-second deadline, both UI countdowns and read-only pending-refund status. Verify rejection before the deadline and refusal at or after it.
-3. **Two-bin returns and payments:** implement normal-return dispatch, quarantine scan, SETTLE PAYMENTS with post-inspection condition payouts and zero-buyback sale settlement, authoritative refund math, station payout lookup and maintenance reserve. Verify wrong capabilities, duplicate scans, early normal returns, and late fault returns cannot settle funds. Verify last/current-owner rotation, retained PAID/FORFEITED results, and replacement on the next normal return.
+3. **Two-bin returns and payments:** implement normal-return dispatch, quarantine scan, final admin review, SETTLE PAYMENTS with post-inspection condition payouts and zero-buyback sale settlement, authoritative refund math, station payout lookup and maintenance reserve. Verify wrong capabilities, duplicate scans, early normal returns, and late inspection rejections cannot settle funds. Verify last/current-owner rotation, retained PAID/FORFEITED results, and replacement on the next normal return.
 4. **Shared views:** implement registry reads, active purchases, supplied umbrellas, both station inventories, balances and pending refunds. Verify updates arrive on the other phone and survive page refresh.
 5. **Rehearse:** execute the stories with funded wallets, printed tags and both phones. Confirm the same QR works from a default camera and the dapp scanner without a second scan.
 
@@ -424,8 +431,16 @@ Contract tests must reject non-admin calls to station creation; allow docking an
 
 Outside the MVP: hardware automation, repair/reactivation, supplier cancellation or asset withdrawal, application server/background worker, database/indexer, and disputes. These have no buttons, transactions or state transitions in this plan. John serves as both admin and station operator for demo purposes; in his operator role he is the trusted physical attestor.
 
-### Fault-return implementation
+### Inspection rejection and final admin review
 
-`station_quarantine_umbrella` requires the receiving station’s matching `StationCap` and `Station`, the umbrella, expected owner count, `Clock`, and transaction context. It only accepts HELD umbrellas strictly before the inspection deadline. It refunds the active escrow to the holder, sends the pending condition hold to the maintenance reserve, retains the prior condition owner/amount/cycle with FORFEITED status, clears the holder, and records the receiving station with QUARANTINED state. Duplicate returns and stale owner counts abort.
+`station_quarantine_umbrella` requires the receiving station’s matching `StationCap` and `Station`, the umbrella, expected owner count, `Clock`, and transaction context. It accepts HELD umbrellas strictly before the inspection deadline. It refunds the current buyer in full, retains the prior hold as AWAITING_REVIEW, clears the holder, and records QUARANTINED at the receiving station. Wear, a ratty appearance and other undesirability are valid reasons for rejection; proof of intentional damage is not required.
 
-The maintenance reserve address is stored in `Station` and initialized to the station creator. Quarantine requires only the matching StationCap, with no AdminCap. This changes the station layout and requires a fresh package deployment rather than a compatible upgrade of an existing deployment.
+`admin_review_quarantined_umbrella` accepts AdminCap, the receiving Station, umbrella, expected owner count, `approve_refund: bool`, and transaction context. It requires QUARANTINED + AWAITING_REVIEW and verifies that the station matches the umbrella’s recorded location. Approving records REFUND_APPROVED without paying immediately. Confirming unsuitability sends the hold to the receiving station’s fixed maintenance reserve and records FORFEITED. Review requires AdminCap but no StationCap, cannot redirect funds, cannot be repeated or reversed, and does not reactivate the umbrella.
+
+The existing `admin_settle_pending_payments` pays REFUND_APPROVED holds once and records PAID. It skips unresolved reviews even after inspection has expired. Both review decisions preserve the condition owner, original amount and cycle. Carl’s refund is independent of the review result.
+
+During quarantine collection, require AdminCap and show AWAITING_REVIEW items across stations, grouped or filtered by receiving station and offer **APPROVE PRIOR REFUND** or **UNSUITABLE — FORFEIT HOLD**. Separate a submitted review from a confirmed result. Multiple reviews can be composed into bounded transactions; customers perform no additional steps. Keep the umbrella in quarantine after either decision; reactivation is outside this change.
+
+No maximum docked waiting period or review timeout has been selected. Holds still wait for a successor inspection, and unresolved quarantine reviews remain escrowed until the admin decides. Adding automatic timeout refunds requires a separate deadline and loss-allocation policy.
+
+Validation must cover a full current-buyer refund at quarantine, frozen prior holds despite late sweeps, admin-only review without StationCap, rejection of mismatched receiving stations, stale cycles, duplicate or reversed decisions, approval before sweep, forfeiture to the fixed reserve, repeated sweeps, and preservation of custody and condition metadata. The maintenance reserve remains the address fixed at station creation.

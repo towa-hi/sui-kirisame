@@ -75,7 +75,7 @@ module kirisame::settle_pending_payments_tests {
 
     // Exercise actual purchases and returns with different buyers. The sweep
     // pays the recorded prior owner, never its caller or the current buyer.
-    fun successor_sweep(final_sale: bool) {
+    fun successor_sweep(final_sale: bool, quarantine: bool) {
         let mut scenario = test_scenario::begin(@0xA);
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
         let (admin, cap, station) = umbrella::station_for_testing(@0xE, scenario.ctx());
@@ -145,6 +145,33 @@ module kirisame::settle_pending_payments_tests {
         let admin = scenario.take_from_sender<umbrella::AdminCap>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(239_999);
+        if (quarantine) {
+            umbrella::station_quarantine_umbrella(&cap, &station, &mut asset, 2, &clock, scenario.ctx());
+            clock.set_for_testing(240_000);
+            umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
+            let (_, _, owner, pending, escrow, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
+            assert!(owner == option::some(@0xB) && pending == 30_000_000 && escrow == 0);
+            umbrella::admin_review_quarantined_umbrella(&admin, &station, &mut asset, 2, true, scenario.ctx());
+            umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
+            umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
+            let (quarantined, forfeited) = umbrella::quarantine_snapshot_for_testing(&asset);
+            let (_, paid, amount, cycle) = umbrella::sale_snapshot_for_testing(&asset);
+            assert!(quarantined && !forfeited && paid && amount == 30_000_000 && cycle == 1);
+            let (_, _, owner, pending, escrow, holder, current, _, _, time, deadline, count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+            assert!(owner == option::some(@0xB) && pending == 0 && escrow == 0 && holder.is_none());
+            assert!(current == option::some(object::id(&station)) && time == 120_000 && deadline == 240_000 && count == 2);
+            test_scenario::return_shared(asset);
+            test_scenario::return_shared(station);
+            scenario.return_to_sender(cap);
+            scenario.return_to_sender(admin);
+            clock.destroy_for_testing();
+            scenario.next_tx(@0xD);
+            assert!(received(&scenario, @0xB) == 30_000_000);
+            assert!(received(&scenario, @0xC) == 100_000_000);
+            assert!(received(&scenario, @0xA) == 0 && received(&scenario, @0xD) == 0 && received(&scenario, @0xE) == 0);
+            scenario.end();
+            return
+        };
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         let (_, _, _, pending, _, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(pending == 30_000_000);
@@ -182,6 +209,7 @@ module kirisame::settle_pending_payments_tests {
         scenario.end();
     }
 
-    #[test] fun successor_sweep_then_return() { successor_sweep(false); }
-    #[test] fun successor_sweep_then_sale() { successor_sweep(true); }
+    #[test] fun successor_quarantine_review_and_sweep() { successor_sweep(false, true); }
+    #[test] fun successor_sweep_then_return() { successor_sweep(false, false); }
+    #[test] fun successor_sweep_then_sale() { successor_sweep(true, false); }
 }

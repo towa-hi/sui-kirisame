@@ -27,6 +27,8 @@ module kirisame::umbrella {
         Pending,
         Paid,
         Forfeited,
+        AwaitingReview,
+        RefundApproved,
     }
 
     public struct Umbrella has key {
@@ -80,6 +82,7 @@ module kirisame::umbrella {
     const ENoBuyback: u64 = 7;
     const EInvalidPayment: u64 = 8;
     const EInspectionClosed: u64 = 9;
+    const EReviewAlreadyFinalized: u64 = 10;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const PURCHASE_PRICE: u64 = 100_000_000;
@@ -248,9 +251,9 @@ module kirisame::umbrella {
         umbrella.state = UmbrellaState::Held;
     }
 
-    /// Station attests a physical fault return before the inspection deadline.
-    /// Refunds the buyer in full and forfeits the previous hold to the station's
-    /// maintenance reserve, retaining its owner, amount and cycle for display.
+    /// Station attests an inspection-window rejection, including wear or
+    /// undesirability. Refunds the buyer in full and freezes the prior hold for
+    /// the admin's final circulation-suitability review during collection.
     public fun station_quarantine_umbrella(
         cap: &StationCap,
         station: &Station,
@@ -266,21 +269,44 @@ module kirisame::umbrella {
 
         let refund = umbrella.active_escrow.value();
         pay(&mut umbrella.active_escrow, refund, *umbrella.holder.borrow(), ctx);
-        if (umbrella.last_condition_status == ConditionStatus::Pending) {
+        umbrella.last_condition_status = ConditionStatus::AwaitingReview;
+        umbrella.holder = option::none();
+        umbrella.current_station_id = option::some(object::id(station));
+        umbrella.state = UmbrellaState::Quarantined;
+    }
+
+    /// Final review by the admin collecting quarantined umbrellas from any station.
+    /// Approving the refund queues the prior hold for the existing sweep.
+    /// Otherwise, unsuitability for circulation forfeits it to the fixed reserve.
+    /// Neither outcome reactivates the umbrella or determines who caused its condition.
+    public fun admin_review_quarantined_umbrella(
+        _admin: &AdminCap,
+        station: &Station,
+        umbrella: &mut Umbrella,
+        expected_owner_count: u64,
+        approve_refund: bool,
+        ctx: &mut TxContext,
+    ) {
+        assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
+        assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
+        assert!(umbrella.state == UmbrellaState::Quarantined, EInvalidState);
+        assert!(umbrella.last_condition_status == ConditionStatus::AwaitingReview, EReviewAlreadyFinalized);
+
+        if (approve_refund) {
+            umbrella.last_condition_status = ConditionStatus::RefundApproved;
+        } else {
             let hold = umbrella.pending_condition.value();
             pay(&mut umbrella.pending_condition, hold, station.maintenance_reserve, ctx);
             umbrella.last_condition_status = ConditionStatus::Forfeited;
         };
-        umbrella.holder = option::none();
-        umbrella.current_station_id = option::some(object::id(station));
-        umbrella.state = UmbrellaState::Quarantined;
     }
 
     /// Periodic sweep primitive: call once per discovered shared umbrella (or
     /// compose bounded PTBs). Sui cannot enumerate shared objects inside Move.
     /// Releases the prior condition hold once inspection ends, without changing
     /// the current purchase or its timer. Also finalizes zero-buyback purchases.
-    /// Skips non-held umbrellas and open inspections; repeated calls cannot pay twice.
+    /// Also pays admin-approved quarantined holds; unresolved reviews stay frozen.
+    /// Skips other states and open inspections; repeated calls cannot pay twice.
     /// Sold records retain the final buyer and prior condition result.
     public fun admin_settle_pending_payments(
         _admin: &AdminCap,
@@ -288,6 +314,12 @@ module kirisame::umbrella {
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
+        if (umbrella.state == UmbrellaState::Quarantined) {
+            if (umbrella.last_condition_status == ConditionStatus::RefundApproved) {
+                pay_pending_condition(umbrella, ctx);
+            };
+            return
+        };
         if (umbrella.state != UmbrellaState::Held) return;
         if (clock.timestamp_ms() < umbrella.inspection_deadline_ms) return;
         pay_pending_condition(umbrella, ctx);
@@ -334,6 +366,17 @@ module kirisame::umbrella {
         )
     }
 
+    #[test_only]
+    public(package) fun condition_status_for_testing(umbrella: &Umbrella): u8 {
+        match (umbrella.last_condition_status) {
+            ConditionStatus::Pending => 0,
+            ConditionStatus::Paid => 1,
+            ConditionStatus::Forfeited => 2,
+            ConditionStatus::AwaitingReview => 3,
+            ConditionStatus::RefundApproved => 4,
+        }
+    }
+
     fun share(amount: u64, percent: u64): u64 {
         (amount / 100) * percent + (amount % 100) * percent / 100
     }
@@ -345,7 +388,8 @@ module kirisame::umbrella {
     }
 
     fun pay_pending_condition(umbrella: &mut Umbrella, ctx: &mut TxContext) {
-        if (umbrella.last_condition_status == ConditionStatus::Pending) {
+        if (umbrella.last_condition_status == ConditionStatus::Pending ||
+            umbrella.last_condition_status == ConditionStatus::RefundApproved) {
             let amount = umbrella.pending_condition.value();
             pay(
                 &mut umbrella.pending_condition,

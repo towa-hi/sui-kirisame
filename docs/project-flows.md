@@ -35,7 +35,7 @@ sequenceDiagram
     John->>John: Put umbrella into normal bin
 ```
 
-Alice can reopen and reprint the same tag without another payment. Her collateral becomes eligible for the sweep after the first customer's inspection ends without rejection. It is paid by the sweep or that customer's eligible normal return, without Alice signing another transaction. It is forfeited if the first customer fault-returns within inspection. Alice remains the original supplier and revenue recipient across later purchases.
+Alice can reopen and reprint the same tag without another payment. Her collateral becomes eligible for the sweep after the first customer's inspection ends without rejection. It is paid by the sweep or that customer's eligible normal return, without Alice signing another transaction. An inspection rejection freezes it for final review by the collecting admin. Alice remains the original supplier and revenue recipient across later purchases.
 
 ## 2. John registers and selects a station
 
@@ -87,7 +87,7 @@ These are **display phases**, not additional stored custody states.
 
 ```mermaid
 flowchart LR
-    Purchase["Purchase confirmed<br/>Stored state: HELD"] --> Inspect["First two minutes<br/>Inspection open; no usage charge<br/>Fault return available"]
+    Purchase["Purchase confirmed<br/>Stored state: HELD"] --> Inspect["First two minutes<br/>Inspection open; no usage charge<br/>Inspection rejection available"]
     Inspect -->|Two minutes elapse| Use["Inspection closed<br/>Buyback decreases with time<br/>Normal return allowed while positive"]
     Use -->|Buyback reaches zero| Effective["Sold - payment settlement pending<br/>No return allowed<br/>Stored state still HELD"]
     Effective -->|John signs SETTLE PAYMENTS| Final["Escrow distributed<br/>Stored state: SOLD<br/>Permanently invalid, read-only record"]
@@ -101,9 +101,9 @@ At the current demo rate, buyback reaches zero 7 minutes 3.031 seconds after pur
 
 ```mermaid
 flowchart TD
-    Bob["Bob holds umbrella after purchase"] --> Fault{"Fault return confirmed within inspection?"}
-    Fault -->|Yes| Reject["John uses SCAN QUARANTINED UMBRELLA<br/>Reviews and signs physical fault return"]
-    Reject --> Quarantine["Bob receives full purchase refund<br/>Alice collateral goes to maintenance reserve<br/>QUARANTINED at receiving station"]
+    Bob["Bob holds umbrella after purchase"] --> Fault{"Inspection rejection confirmed within inspection?"}
+    Fault -->|Yes| Reject["John uses SCAN QUARANTINED UMBRELLA<br/>Reviews and signs physical inspection rejection"]
+    Reject --> Quarantine["Bob receives full purchase refund<br/>Alice collateral awaits admin review<br/>QUARANTINED at receiving station"]
     Quarantine --> Bin["John puts umbrella in quarantine bin"]
     Fault -->|No| Expiry["Inspection ends; umbrella stays HELD<br/>Usage begins accruing<br/>Alice collateral awaits payment sweep"]
     Expiry --> Use["Bob uses umbrella<br/>Returns while buyback remains positive"]
@@ -113,7 +113,7 @@ flowchart TD
     Dock --> Pending["Bob CLIENT: Refund pending<br/>Waiting for next customer inspection"]
 ```
 
-The fault-return transaction must execute before the inspection deadline. The normal-return transaction may execute at or after the inspection deadline and strictly before buyback reaches zero. After inspection, damage is the holder's responsibility; there is no late full-refund rejection.
+The inspection-rejection transaction must execute before the inspection deadline. The normal-return transaction may execute at or after the inspection deadline and strictly before buyback reaches zero. After inspection, the holder accepts responsibility for continued acceptability; there is no late full-refund rejection.
 
 If Bob's return executes exactly five minutes after purchase, three minutes are charged: **0.0594 SUI usage, 0.0106 SUI immediate refund, and 0.03 SUI pending**. For shorter use, buyback above the 0.03 SUI condition hold is paid immediately. No earlier sweep is required for a normal return.
 
@@ -133,14 +133,23 @@ sequenceDiagram
     Chain->>Chain: Set HELD with Carl as current owner; retain Bob's pending hold
     Note over Chain,Bob: Carl's first two minutes are inspection
 
-    alt Carl fault-returns before inspection ends
+    alt Carl rejects before inspection ends
         Carl->>John: Physically surrender umbrella
-        John->>Chain: Scan quarantine tag and sign fault return
+        John->>Chain: Scan quarantine tag and sign inspection rejection
         Chain-->>Carl: Refund full 0.10 SUI purchase
-        Chain->>Chain: Bob hold to maintenance reserve; retain forfeited result
+        Chain->>Chain: Freeze Bob hold as AWAITING_REVIEW
         Chain-->>John: QUARANTINED; place in quarantine bin
         Bob->>Chain: Refresh latest refund results
-        Chain-->>Bob: Return quarantined - pending refund not paid
+        Chain-->>Bob: Awaiting admin review; hold remains escrowed
+        John->>John: Inspect quarantined umbrella during collection
+        John->>Chain: Submit final review using AdminCap
+        alt Refund approved
+            Chain->>Chain: Record REFUND_APPROVED; retain hold
+            John->>Chain: Run existing SETTLE PAYMENTS sweep
+            Chain-->>Bob: Pay hold and record PAID
+        else Unsuitable for circulation
+            Chain->>Chain: Send hold to fixed reserve; record FORFEITED
+        end
     else Carl does not reject
         Note over Chain,Bob: Deadline passes; state remains HELD; no automatic payment
         Bob->>Chain: Read pending refund status
@@ -151,7 +160,7 @@ sequenceDiagram
     end
 ```
 
-Bob keeps the 0.0106 SUI already paid on his return even if Carl rejects; only the pending 0.03 SUI is forfeited.
+Bob keeps the 0.0106 SUI already paid on his return even if Carl rejects; only the pending 0.03 SUI is subject to the admin’s final review. Wear, appearance and other undesirability can justify quarantine; the review does not assign blame for damage.
 
 If Carl returns before the sweep, his eligible normal return pays Bob's pending hold. Alice's initial collateral uses the same sweep rules. Each hold is paid once; neither recipient signs a refund transaction.
 
@@ -178,8 +187,8 @@ flowchart TD
     Return --> Success
     Button -->|SCAN QUARANTINED UMBRELLA| Fault["Decode QR and read umbrella"]
     Fault --> Window{"HELD and inspection still open?"}
-    Window -->|No| Refuse["No fault-return action"]
-    Window -->|Yes| Quarantine["John reviews and signs fault return"]
+    Window -->|No| Refuse["No inspection-rejection action"]
+    Window -->|Yes| Quarantine["John reviews and signs inspection rejection"]
     Quarantine --> Confirm["After confirmation: refresh quarantine inventory"]
 ```
 
@@ -192,7 +201,7 @@ stateDiagram-v2
     [*] --> CREATED: Supplier registers and pays collateral
     CREATED --> DOCKED: John confirms physical deposit
     DOCKED --> HELD: Customer purchases
-    HELD --> QUARANTINED: John confirms fault return during inspection
+    HELD --> QUARANTINED: John confirms inspection rejection during inspection
     HELD --> DOCKED: John confirms normal return after inspection with positive buyback
     HELD --> SOLD: John confirms SETTLE PAYMENTS at zero buyback
 
@@ -208,6 +217,8 @@ stateDiagram-v2
     end note
     note right of QUARANTINED
         Recorded in receiving station's quarantine bin.
+        Prior hold awaits final admin review.
+        Approved refunds use the existing sweep.
         No purchase or reactivation in MVP.
     end note
 ```
@@ -219,8 +230,15 @@ These five states are the entire stored custody model. HELD does not imply that 
 ```mermaid
 flowchart TD
     Button["Admin John presses SETTLE PAYMENTS"] --> Read["Read all registered umbrellas directly from chain<br/>Include those held away from stations"]
-    Read --> Eligible{"HELD, inspection ended,<br/>and pending hold or zero buyback?"}
-    Eligible -->|No| Skip["Skip"]
+    Read --> Review{"QUARANTINED?"}
+    Review -->|Yes| Approved{"REFUND_APPROVED?"}
+    Approved -->|No| Skip["Skip; unresolved reviews remain frozen"]
+    Approved -->|Yes| ReviewPreview["Preview approved refunds; John signs"]
+    ReviewPreview --> ReviewCheck{"Contract rechecks<br/>QUARANTINED + REFUND_APPROVED"}
+    ReviewCheck -->|No| Skip
+    ReviewCheck -->|Yes| Refund["Pay recorded prior owner; record PAID<br/>Keep QUARANTINED"]
+    Review -->|No| Eligible{"HELD, inspection ended,<br/>and pending hold or zero buyback?"}
+    Eligible -->|No| Skip
     Eligible -->|Yes| Preview["Preview eligible umbrellas and payment recipients"]
     Preview --> Sign["John confirms and signs bounded transactions"]
     Sign --> Check{"Contract checks HELD and<br/>inspection ended at execution"}
@@ -232,9 +250,10 @@ flowchart TD
     Split --> Sold["Clear escrow and record SOLD<br/>Keep owners and latest refund result<br/>Permanently invalid, read-only"]
     Held --> Result["Show confirmed results and refresh both views"]
     Sold --> Result
+    Refund --> Result
 ```
 
-Both paths use the same `admin_settle_pending_payments` function. Checks and payouts for each umbrella execute atomically. If a batch fails, its operations roll back; refetch and retry only eligible items. Repeated submissions cannot pay twice. The selected station does not affect eligibility or recipients.
+All payout paths use the same `admin_settle_pending_payments` function. Checks and payouts for each umbrella execute atomically. If a batch fails, its operations roll back; refetch and retry only eligible items. Repeated submissions cannot pay twice. The selected station does not affect eligibility or recipients.
 
 The buyer pays nothing more. For a finalized 0.10 SUI purchase, the supplier receives 0.07 SUI and the checkout station receives 0.03 SUI. An unpaid prior owner's condition hold is a **separate balance** and is also released. It does not reduce those 0.10 SUI proceeds.
 
@@ -256,7 +275,7 @@ Normal return requires positive buyback and uses **70% supplier / 15% checkout s
 
 The first two minutes are free inspection. Afterward, the demo rate is 0.0198 SUI per minute. The calculation is based on elapsed time; no process runs a timer onchain. The contract uses exact integer amounts, so a displayed value rounded to zero must not decide return eligibility.
 
-A full fault-return refund returns the current customer's purchase payment and forfeits the prior condition hold to the maintenance reserve. While buyback is positive, the sweep pays only the pending condition hold; it never refunds the current buyer's active purchase.
+An inspection rejection refunds the current customer’s purchase payment and freezes the prior hold. The admin’s final review either approves that hold for the sweep or forfeits it to the fixed maintenance reserve. While buyback is positive, the sweep pays only the pending condition hold; it never refunds the current buyer's active purchase.
 
 ## 11. System responsibilities
 
@@ -265,7 +284,7 @@ flowchart TB
     subgraph Dapp["One dapp on two phones"]
         Client["CLIENT<br/>Supply and print QR; purchase<br/>Balance, pending refunds and latest results"]
         Wallet["Alice / Bob / Carl wallet"]
-        Station["STATION<br/>Register/select; scan both bins<br/>SETTLE PAYMENTS for holds and sales"]
+        Station["STATION<br/>Register/select; scan both bins; review quarantine<br/>SETTLE PAYMENTS for holds and sales"]
         Admin["John wallet<br/>Admin and station operator"]
         Client -->|Approve payments| Wallet
         Station -->|Approve station actions| Admin
@@ -287,4 +306,6 @@ flowchart TB
     Station <-->|Read directly| Access
 ```
 
-Station registration and sweeps require admin authority onchain; physical attestations require the receiving station’s StationCap. Customers supply and purchase; eligible refunds arrive through the sweep or a normal return without customer action. Static dapp hosting and chain access are sufficient; no server, timer worker or internal-function controls are part of these flows.
+Station registration, final quarantine reviews and sweeps require AdminCap; physical deposits and quarantine intake require the receiving station’s StationCap. Customers supply and purchase; eligible refunds arrive through the sweep or a normal return without customer action. Static dapp hosting and chain access are sufficient; no server, timer worker or internal-function controls are part of these flows.
+
+Unreviewed holds have no timeout in this version. Normal-bin holds still wait for a successor inspection. Maximum waiting periods and review-timeout refunds require a separate policy decision.
