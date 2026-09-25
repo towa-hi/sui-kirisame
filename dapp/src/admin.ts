@@ -1,3 +1,4 @@
+import { stationActions } from './station.js';
 import { stationLocationScript, stationLocationStyles } from './station-location.js';
 
 const objectField = (name: string, label: string) => ({ name, label, kind: 'object' });
@@ -77,7 +78,7 @@ export const adminStyles = /* css */ `
 `;
 
 export const adminScript = /* js */ `
-  const adminActions = ${JSON.stringify(adminActions)};
+  const adminActions = ${JSON.stringify([...adminActions, ...stationActions])};
   const adminDialog = document.getElementById('admin-dialog');
   const adminForm = document.getElementById('admin-form');
   const adminFields = document.getElementById('admin-fields');
@@ -100,15 +101,21 @@ export const adminScript = /* js */ `
     clearTimeout(toastTimer);
     toast.hidden = true;
   });
+  function canUseAction(action) {
+    return action?.id.startsWith('station_') ? Boolean(account) : isMonoWallet();
+  }
   function renderAdminAccess() {
     const allowed = isMonoWallet();
-    for (const button of document.querySelectorAll('.admin-action')) button.disabled = adminPending || !allowed;
-    adminConfirm.disabled = adminPending || !allowed;
-    adminFields.disabled = adminPending || !allowed;
+    for (const button of document.querySelectorAll('.admin-action')) button.disabled = adminPending || !canUseAction(adminActions.find(action => action.id === button.dataset.action));
+    adminConfirm.disabled = adminPending || !canUseAction(adminAction);
+    adminFields.disabled = adminPending || !canUseAction(adminAction);
     document.getElementById('admin-mode').textContent = allowed
       ? 'Testnet · mono connected. Admin functions require the Kirisame AdminCap.'
       : 'Testnet · Connect mono to use admin functions.';
-    if (!allowed && !adminPending && adminDialog.open) adminDialog.close();
+    document.getElementById('station-mode').textContent = account
+      ? 'Testnet · Station functions require your matching StationCap and an active station.'
+      : 'Testnet · Connect your wallet to use station functions. You must own the matching StationCap.';
+    if (!canUseAction(adminAction) && !adminPending && adminDialog.open) adminDialog.close();
   }
   function setAdminPending(value) {
     adminPending = value;
@@ -121,8 +128,9 @@ export const adminScript = /* js */ `
     renderAdminAccess();
   }
   for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
-    if (adminPending || !isMonoWallet()) return;
-    adminAction = adminActions.find(action => action.id === button.dataset.action);
+    const action = adminActions.find(action => action.id === button.dataset.action);
+    if (adminPending || !canUseAction(action)) return;
+    adminAction = action;
     document.getElementById('admin-dialog-title').textContent = adminAction.title;
     document.getElementById('admin-dialog-description').textContent = adminAction.description;
     adminError.textContent = '';
@@ -158,13 +166,14 @@ export const adminScript = /* js */ `
       adminFields.append(label);
     }
     if (adminAction.id === 'admin_create_station') addStationLocationControls();
+    renderAdminAccess();
     adminDialog.showModal();
   });
   adminCancel.addEventListener('click', () => { if (!adminPending) adminDialog.close(); });
   adminDialog.addEventListener('cancel', event => { if (adminPending) event.preventDefault(); });
   adminForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (adminPending || !adminAction || !isMonoWallet()) return;
+    if (adminPending || !adminAction || !canUseAction(adminAction)) return;
     const parameters = {};
     for (const field of adminAction.fields) {
       const input = adminForm.elements.namedItem(field.name);
@@ -186,7 +195,7 @@ export const adminScript = /* js */ `
       const feature = signingWallet.features['sui:signAndExecuteTransaction'];
       if (!feature) throw new Error('This wallet does not support transaction signing. Update Slush and try again.');
       if (!signingAccount.chains.includes('sui:testnet')) throw new Error('Switch your wallet to Sui testnet.');
-      const response = await fetch('/api/admin/' + adminAction.id, {
+      const response = await fetch('/api/' + (adminAction.id.startsWith('station_') ? 'station/' : 'admin/') + adminAction.id, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parameters, sender: signingAccount.address }), signal: AbortSignal.timeout(30000),
       });

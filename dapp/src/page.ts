@@ -1,3 +1,4 @@
+import { stationMarkup } from './station.js';
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
 
 import { supplyMarkup, supplyScript } from "./supply.js";
@@ -125,8 +126,7 @@ export const page = /* html */ `<!doctype html>
         </div>
       </section>
       <section id="station-panel" role="tabpanel" aria-labelledby="station-tab" hidden>
-        <div class="panel-content">
-          <p class="status">Under construction. Features are coming one at a time.</p></div>
+        <div class="panel-content">${stationMarkup}</div>
       </section>
       <section id="admin-panel" role="tabpanel" aria-labelledby="admin-tab" hidden>
         <div class="panel-content">

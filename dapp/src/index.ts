@@ -23,6 +23,7 @@ app.get("/api/balance/:address", async (c) => {
 });
 
 app.route("/api/admin", adminRoutes(sui));
+app.route("/api/station", adminRoutes(sui, "station"));
 app.route("/api/supply", supplyRoutes());
 
 app.get("/", (c) => c.html(page));
