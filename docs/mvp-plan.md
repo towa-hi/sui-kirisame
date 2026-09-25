@@ -1,6 +1,6 @@
 # Kirisame MVP plan
 
-The demo uses one dapp with two tabs: **CLIENT** and **STATION**. One phone runs the client view; another runs the station view. **John is both the protocol admin and the station operator for demo purposes.** Every station transaction requires `AdminCap`. Physical deposits and returns additionally require the selected station's `StationCap`; that capability alone does not grant operator access. He operates the station phone and manually scans umbrellas to simulate the sensors a physical station would eventually have.
+The demo uses one dapp with two tabs: **CLIENT** and **STATION**. One phone runs the client view; another runs the station view. **John is both the protocol admin and the station operator for demo purposes.** Station registration requires `AdminCap`. Physical deposits and returns require only the selected station's `StationCap`. He operates the station phone and manually scans umbrellas to simulate the sensors a physical station would eventually have.
 
 **The demo has no application server or background worker.** Both tabs read the chain directly. John uses **SETTLE PAYMENTS** on the STATION tab only to distribute escrow for zero-buyback purchases and record SOLD.
 
@@ -56,7 +56,7 @@ John, acting as the demo admin, opens **STATION → REGISTER NEW STATION**, ente
 
 John, now acting as the station operator, opens **SET CURRENT STATION**, chooses `yoyogi` from the dropdown, and presses **CONFIRM**. The station phone now shows Yoyogi's inventory and targets Yoyogi in subsequent scan transactions.
 
-The entire STATION interface is admin-only: require the connected wallet to hold this deployment's `AdminCap` before enabling station registration, selection, scanners, or SETTLE PAYMENTS. Selection remains a local preference with no transaction. Every station mutation must also require `AdminCap` onchain; hiding buttons is insufficient. Activation and returns additionally require the matching `StationCap`. Chain data remains public; this UI restriction does not make inventory private.
+Station registration and planned SETTLE PAYMENTS require this deployment's `AdminCap`. Selection remains a local preference with no transaction. Deposit, normal-return and quarantine scanners require only the selected station's `StationCap`, validated onchain against the receiving station. Chain data remains public.
 
 For this demo, newly registered stations issue their capability to the registering admin wallet, and default their payout address to that wallet. John can therefore operate multiple demo stations with one wallet. The dropdown lists all registered stations, labels ones the wallet cannot operate, and explains why their scan actions are unavailable. These are the demo defaults.
 
@@ -73,7 +73,7 @@ For this demo, newly registered stations issue their capability to the registeri
 | **SETTLE PAYMENTS** | Reads all registered umbrellas, previews only zero-buyback purchase settlements, then requests John’s signature for bounded transactions. No physical scan or current-station selection required. |
 | **SET CURRENT STATION** | Opens the station dropdown with **CONFIRM / DENY**. Confirm changes only this device's selection. |
 
-Scan controls require a connected wallet holding both the deployment AdminCap and the selected station’s StationCap. Recheck access on wallet/account changes and before each submission. “Quarantined” in the second scan button means putting a currently purchased umbrella into quarantine; scanning an already quarantined umbrella must not refund it again.
+Docking and quarantine require only the selected station’s StationCap. Recheck access on wallet/account changes and before each submission. “Quarantined” in the second scan button means putting a currently purchased umbrella into quarantine; scanning an already quarantined umbrella must not refund it again.
 
 Inventory must reflect confirmed chain state. Remove umbrellas when checkout succeeds; add them when activation or return succeeds. A quarantined umbrella must record its receiving station so it appears in the correct quarantine bin. When reads fail, show a stale/offline indicator rather than implying the inventory is current.
 
@@ -244,7 +244,7 @@ The supplier earns usage revenue, not the entire 0.10 SUI purchase payment. Her 
 | Wallets | Alice signs supply; Bob and Carl sign their purchases; John signs station registration as admin and physical attestations as station operator. Each signer needs SUI for gas. |
 | Move contract | Authoritative station permissions, umbrella custody, inspection boundaries, escrow, refunds, fees, condition holds and payouts. |
 
-**Signing:** all transactions are signed in a phone wallet. John signs every station transaction as admin, including physical attestations and due payment settlement. Alice, Bob and Carl sign their own payments and claims. Settlement does not change the selected station or pay John just because he submitted it.
+**Signing:** all transactions are signed in a phone wallet. John signs registration and due payment settlement as admin, and physical attestations as station operator. Alice, Bob and Carl sign their own payments and claims. Settlement does not change the selected station or pay John just because he submitted it.
 
 ### SETTLE PAYMENTS
 
@@ -261,7 +261,7 @@ This button simulates automation; it does not run in the background. If nobody p
 
 ### Zero-buyback final settlement
 
-The buyer already paid the full purchase price at checkout; settlement charges them nothing more and requires no buyer signature. At zero buyback, the umbrella cannot be returned, even while its stored state is HELD awaiting cleanup. `settle_sale` releases any still-pending prior condition hold, distributes the active escrow, records the final buyer, and marks `SOLD`.
+The buyer already paid the full purchase price at checkout; settlement charges them nothing more and requires no buyer signature. At zero buyback, the umbrella cannot be returned, even while its stored state is HELD awaiting cleanup. `admin_settle_sale` releases any still-pending prior condition hold, distributes the active escrow, records the final buyer, and marks `SOLD`.
 
 SOLD means **permanently invalid**. Retain the shared object, registry ID, owners and latest condition result for read-only display; do not delete it. All umbrella-mutating functions reject a SOLD record, including activation, checkout, returns, claims and repeat settlement. Both escrow balances are zero. The old QR opens an “Invalid — purchase finalized” page with no actions. Keep the object discoverable for finalized purchases and the prior owner’s latest refund result, but exclude it from station inventories and further settlement work.
 
@@ -336,21 +336,21 @@ The coordinate offset keeps signed geographic coordinates in Move's unsigned int
 
 ### Actions and authorization
 
-Station functions require an AdminCap bound to this deployment. Physical attestations also validate StationCap and registry membership. Add a separate client-only `claim_refund` wrapper: verify state is HELD, sender equals last_owner, condition status is PENDING with positive balance, expected current owner_count matches, and inspection has expired; then run the same private condition-payout helper. Do not leave an unrestricted public settlement helper that bypasses these checks. The claim wrapper releases only that owner’s condition hold; it cannot finalize sales or attest custody.
+Station registration and planned payment settlement require an AdminCap bound to this deployment. Physical attestations require only the matching StationCap. Add a separate client-only `user_claim_refund` wrapper: verify state is HELD, sender equals last_owner, condition status is PENDING with positive balance, expected current owner_count matches, and inspection has expired; then run the same private condition-payout helper. Do not leave an unrestricted public settlement helper that bypasses these checks. The claim wrapper releases only that owner’s condition hold; it cannot finalize sales or attest custody.
 
 | User action | Function | Signer / permission | Result |
 | --- | --- | --- | --- |
-| Register new station | `create_station` | John with `AdminCap` | Public station record with unique ID, display name, location name, fixed-point coordinates and payout address; `StationCap` issued to John. |
+| Register new station | `admin_create_station` | John with `AdminCap` | Public station record with unique ID, display name, location name, fixed-point coordinates and payout address; `StationCap` issued to John. |
 | Set current station | None | Admin-only UI; no transaction | Change local selection only. |
-| Supply umbrella | `create_umbrella` | Alice; anyone can supply | Exact supplier bond escrowed; shared umbrella in `CREATED`; ID added to discovery. |
-| Scan newly supplied umbrella | `dock_umbrella` | John with `AdminCap` and matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
-| Confirm purchase | `checkout` | Bob, exact purchase payment | Store holder/station/deadline; `DOCKED → HELD`. |
-| **CLAIM REFUND** (CLIENT only) | `claim_refund` | HELD; sender is last_owner; positive PENDING hold; inspection deadline reached; expected current owner_count matches; no admin capability needed | Pay the hold once and record PAID; custody remains HELD. Still allowed at zero buyback until sale cleanup pays it. |
-| **SETTLE PAYMENTS**, zero buyback | `settle_sale` | John with `AdminCap`; no physical attestation | Pay any pending prior hold, distribute current escrow, record final buyer; `→ SOLD`. |
-| Scan normal return | `dock_umbrella` | John with `AdminCap` and receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
-| Scan fault return | `reject_and_quarantine` | John with `AdminCap` and receiving `StationCap`, before deadline | Full current refund, prior hold to reserve, record station; `HELD → QUARANTINED`. |
+| Supply umbrella | `user_create_umbrella` | Alice; anyone can supply | Exact supplier bond escrowed; shared umbrella in `CREATED`; ID added to discovery. |
+| Scan newly supplied umbrella | `station_dock_umbrella` | Operator with matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
+| Confirm purchase | `user_undock_umbrella` | Bob, exact purchase payment | Store holder/station/deadline; `DOCKED → HELD`. |
+| **CLAIM REFUND** (CLIENT only) | `user_claim_refund` | HELD; sender is last_owner; positive PENDING hold; inspection deadline reached; expected current owner_count matches; no admin capability needed | Pay the hold once and record PAID; custody remains HELD. Still allowed at zero buyback until sale cleanup pays it. |
+| **SETTLE PAYMENTS**, zero buyback | `admin_settle_sale` | John with `AdminCap`; no physical attestation | Pay any pending prior hold, distribute current escrow, record final buyer; `→ SOLD`. |
+| Scan normal return | `station_dock_umbrella` | Operator with receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
+| Scan fault return | `station_quarantine_umbrella` | Operator with receiving `StationCap`, before deadline | Full current refund, prior hold to reserve, record station; `HELD → QUARANTINED`. |
 
-`dock_umbrella` handles both first deposit and normal return. It takes `AdminCap`, the receiving `StationCap` and `Station`, the umbrella, the expected current owner count, `Clock`, and transaction context. The station capability must reference the supplied station object. First deposits preserve the supplier collateral and its cycle-zero condition record. Customer returns settle payments before docking and replace the condition record with the returning customer's hold. Both paths reject a stale owner count; already docked, quarantined and sold umbrellas cannot be docked again.
+`station_dock_umbrella` handles both first deposit and normal return. It takes the receiving `StationCap` and `Station`, the umbrella, the expected current owner count, `Clock`, and transaction context. The station capability must reference the supplied station object. First deposits preserve the supplier collateral and its cycle-zero condition record. Customer returns settle payments before docking and replace the condition record with the returning customer's hold. Both paths reject a stale owner count; already docked, quarantined and sold umbrellas cannot be docked again.
 
 | Print, scan, view or deny | None | No economic transaction | Navigation or local UI only until a confirmed signed action. |
 
@@ -422,6 +422,12 @@ Build one complete journey at a time. The only MVP custody states are `CREATED`,
 4. **Shared views:** implement registry reads, active purchases, supplied umbrellas, both station inventories, balances and pending refunds. Verify updates arrive on the other phone and survive page refresh.
 5. **Rehearse:** execute the stories with funded wallets, printed tags and both phones. Confirm the same QR works from a default camera and the dapp scanner without a second scan.
 
-Contract tests must reject non-admin calls to every station mutation, including callers holding only StationCap; reject claims by anyone other than the pending owner; and cover the exact deadline, HELD immediately on purchase, inspection expiry without a transaction, return without an earlier refund claim, first supplier-bond settlement, successor hold release/forfeiture, return one millisecond before and exactly at the zero-buyback cutoff, refusal of zero-buyback return before settlement, receiving-station recording, station-settlement/claim races, payout to the pending owner regardless of caller, sale settlement without return, sale with an unpaid prior hold, skipping positive-buyback purchases during station cleanup, settlement/return races, repeated settlement, rejection of all mutations of SOLD objects, retained owners and latest results after invalidation, and conservation of all escrow balances. Frontend checks should cover signature denial, failed/unknown transactions, scanner cancellation and repeated scans, stale inventory, eligible/ineligible claim actions, paid/quarantined latest refund results after reconnecting Bob, settlement batch failure and refresh recovery.
+Contract tests must reject non-admin calls to station creation; allow docking and quarantine with only the matching StationCap; reject claims by anyone other than the pending owner; and cover the exact deadline, HELD immediately on purchase, inspection expiry without a transaction, return without an earlier refund claim, first supplier-bond settlement, successor hold release/forfeiture, return one millisecond before and exactly at the zero-buyback cutoff, refusal of zero-buyback return before settlement, receiving-station recording, station-settlement/claim races, payout to the pending owner regardless of caller, sale settlement without return, sale with an unpaid prior hold, skipping positive-buyback purchases during station cleanup, settlement/return races, repeated settlement, rejection of all mutations of SOLD objects, retained owners and latest results after invalidation, and conservation of all escrow balances. Frontend checks should cover signature denial, failed/unknown transactions, scanner cancellation and repeated scans, stale inventory, eligible/ineligible claim actions, paid/quarantined latest refund results after reconnecting Bob, settlement batch failure and refresh recovery.
 
 Outside the MVP: hardware automation, repair/reactivation, supplier cancellation or asset withdrawal, application server/background worker, database/indexer, and disputes. These have no buttons, transactions or state transitions in this plan. John serves as both admin and station operator for demo purposes; in his operator role he is the trusted physical attestor.
+
+### Fault-return implementation
+
+`station_quarantine_umbrella` requires the receiving station’s matching `StationCap` and `Station`, the umbrella, expected owner count, `Clock`, and transaction context. It only accepts HELD umbrellas strictly before the inspection deadline. It refunds the active escrow to the holder, sends the pending condition hold to the maintenance reserve, retains the prior condition owner/amount/cycle with FORFEITED status, clears the holder, and records the receiving station with QUARANTINED state. Duplicate returns and stale owner counts abort.
+
+The maintenance reserve address is stored in `Station` and initialized to the station creator. Quarantine requires only the matching StationCap, with no AdminCap. This changes the station layout and requires a fresh package deployment rather than a compatible upgrade of an existing deployment.

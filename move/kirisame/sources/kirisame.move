@@ -63,6 +63,8 @@ module kirisame::umbrella {
         latitude_e6: u64,
         longitude_e6: u64,
         payout_address: address,
+        // Fixed at station creation; operators cannot redirect forfeited holds.
+        maintenance_reserve: address,
     }
 
     const MAX_LATITUDE_E6: u64 = 180_000_000;
@@ -77,6 +79,7 @@ module kirisame::umbrella {
     const EInspectionOpen: u64 = 6;
     const ENoBuyback: u64 = 7;
     const EInvalidPayment: u64 = 8;
+    const EInspectionClosed: u64 = 9;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const PURCHASE_PRICE: u64 = 100_000_000;
@@ -86,13 +89,13 @@ module kirisame::umbrella {
 
     fun init(ctx: &mut TxContext) {
         transfer::transfer(
-            AdminCap {id: object::new(ctx)}, 
+            AdminCap {id: object::new(ctx)},
             ctx.sender(),
         );
     }
 
     /// Create a new station
-    public fun create_station(
+    public fun admin_create_station(
         _admin: &AdminCap,
         display_name: String,
         location_name: String,
@@ -111,6 +114,7 @@ module kirisame::umbrella {
             latitude_e6,
             longitude_e6,
             payout_address,
+            maintenance_reserve: ctx.sender(),
         };
         let station_id = object::id(&station);
         transfer::share_object(station);
@@ -124,7 +128,7 @@ module kirisame::umbrella {
     }
 
     /// Posts the supplier's condition bond and creates an umbrella awaiting deposit.
-    public fun create_umbrella(bond: Coin<SUI>, ctx: &mut TxContext) {
+    public fun user_create_umbrella(bond: Coin<SUI>, ctx: &mut TxContext) {
         assert!(bond.value() == CONDITION_BOND, EInvalidConditionBond);
 
         let supplier = ctx.sender();
@@ -152,8 +156,7 @@ module kirisame::umbrella {
     }
 
     /// Station attests physical receipt of a new umbrella or an eligible return.
-    public fun dock_umbrella(
-        _admin: &AdminCap,
+    public fun station_dock_umbrella(
         cap: &StationCap,
         station: &Station,
         umbrella: &mut Umbrella,
@@ -220,7 +223,7 @@ module kirisame::umbrella {
     }
 
     /// Buyer purchases a docked umbrella and begins its inspection window.
-    public fun undock_umbrella(
+    public fun user_undock_umbrella(
         station: &Station,
         umbrella: &mut Umbrella,
         payment: Coin<SUI>,
@@ -251,6 +254,42 @@ module kirisame::umbrella {
 
         umbrella.current_station_id = option::none();
         umbrella.state = UmbrellaState::Held;
+    }
+
+    /// Station attests a physical fault return before the inspection deadline.
+    /// Refunds the buyer in full and forfeits the previous hold to the station's
+    /// maintenance reserve, retaining its owner, amount and cycle for display.
+    public fun station_quarantine_umbrella(
+        cap: &StationCap,
+        station: &Station,
+        umbrella: &mut Umbrella,
+        expected_owner_count: u64,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        assert!(cap.station == object::id(station), EWrongStation);
+        assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
+        assert!(umbrella.state == UmbrellaState::Held, EInvalidState);
+        assert!(clock.timestamp_ms() < umbrella.inspection_deadline_ms, EInspectionClosed);
+
+        let refund = umbrella.active_escrow.value();
+        pay(&mut umbrella.active_escrow, refund, *umbrella.holder.borrow(), ctx);
+        if (umbrella.last_condition_status == ConditionStatus::Pending) {
+            let hold = umbrella.pending_condition.value();
+            pay(&mut umbrella.pending_condition, hold, station.maintenance_reserve, ctx);
+            umbrella.last_condition_status = ConditionStatus::Forfeited;
+        };
+        umbrella.holder = option::none();
+        umbrella.current_station_id = option::some(object::id(station));
+        umbrella.state = UmbrellaState::Quarantined;
+    }
+
+    #[test_only]
+    public(package) fun quarantine_snapshot_for_testing(umbrella: &Umbrella): (bool, bool) {
+        (
+            umbrella.state == UmbrellaState::Quarantined,
+            umbrella.last_condition_status == ConditionStatus::Forfeited,
+        )
     }
 
     fun share(amount: u64, percent: u64): u64 {
@@ -285,6 +324,7 @@ module kirisame::umbrella {
             latitude_e6: 0,
             longitude_e6: 0,
             payout_address,
+            maintenance_reserve: ctx.sender(),
         };
         let cap = StationCap { id: object::new(ctx), station: object::id(&station) };
         (AdminCap { id: object::new(ctx) }, cap, station)

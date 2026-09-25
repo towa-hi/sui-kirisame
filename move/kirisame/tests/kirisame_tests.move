@@ -8,7 +8,7 @@ module kirisame::kirisame_tests {
         let supplier = @0xA;
         let mut scenario = sui::test_scenario::begin(supplier);
         let bond = sui::coin::mint_for_testing<SUI>(30_000_000, scenario.ctx());
-        umbrella::create_umbrella(bond, scenario.ctx());
+        umbrella::user_create_umbrella(bond, scenario.ctx());
         scenario.next_tx(supplier);
 
         let umbrella = scenario.take_shared<Umbrella>();
@@ -56,13 +56,13 @@ module kirisame::kirisame_tests {
     #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
     fun test_create_umbrella_underpayment() {
         let mut ctx = tx_context::dummy();
-        umbrella::create_umbrella(sui::coin::mint_for_testing<SUI>(29_999_999, &mut ctx), &mut ctx);
+        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(29_999_999, &mut ctx), &mut ctx);
     }
 
     #[test]
     #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
     fun test_create_umbrella_overpayment() {
         let mut ctx = tx_context::dummy();
-        umbrella::create_umbrella(sui::coin::mint_for_testing<SUI>(30_000_001, &mut ctx), &mut ctx);
+        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(30_000_001, &mut ctx), &mut ctx);
     }
 }

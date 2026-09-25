@@ -5,10 +5,10 @@ module kirisame::dock_umbrella_tests {
     use sui::sui::SUI;
     use sui::test_scenario::{Self, Scenario};
 
-    // Checkout is not implemented yet; the fixture supplies its postconditions.
+    // The fixture supplies the postconditions of checkout.
     fun run_dock(state: u8, now: u64, cycle: u64, wrong_station: bool, duplicate: bool, paid: bool, usage: u64) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
         if (state != 0) {
@@ -16,14 +16,28 @@ module kirisame::dock_umbrella_tests {
         };
         let (admin, cap, station) = umbrella::station_for_testing(@0xD, scenario.ctx());
         let (other_admin, other_cap, other_station) = umbrella::station_for_testing(@0xE, scenario.ctx());
+        transfer::public_transfer(admin, @0x99);
+        transfer::public_transfer(other_admin, @0x99);
+        test_scenario::return_shared(asset);
+        transfer::public_transfer(cap, @0xD);
+        transfer::public_transfer(station, @0xD);
+        transfer::public_transfer(other_cap, @0xD);
+        transfer::public_transfer(other_station, @0xD);
+        scenario.next_tx(@0xD);
+        assert!(!test_scenario::has_most_recent_for_address<umbrella::AdminCap>(@0xD));
+        let mut asset = scenario.take_shared<Umbrella>();
+        let other_cap = scenario.take_from_sender<umbrella::StationCap>();
+        let cap = scenario.take_from_sender<umbrella::StationCap>();
+        let other_station = scenario.take_from_sender<umbrella::Station>();
+        let station = scenario.take_from_sender<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(now);
-        umbrella::dock_umbrella(
-            &admin, if (wrong_station) { &other_cap } else { &cap }, &station,
+        umbrella::station_dock_umbrella(
+            if (wrong_station) { &other_cap } else { &cap }, &station,
             &mut asset, cycle, &clock, scenario.ctx(),
         );
         if (duplicate) {
-            umbrella::dock_umbrella(&admin, &cap, &station, &mut asset, cycle, &clock, scenario.ctx());
+            umbrella::station_dock_umbrella(&cap, &station, &mut asset, cycle, &clock, scenario.ctx());
         };
         let (_, _, owner, pending, escrow, holder, current_station, _, _, _, _, owner_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
         let (docked, amount, condition_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
@@ -36,10 +50,8 @@ module kirisame::dock_umbrella_tests {
         assert!(owner == option::some(if (state == 0) { @0xA } else { @0xB }));
         test_scenario::return_shared(asset);
         clock.destroy_for_testing();
-        transfer::public_transfer(admin, @0xD);
         transfer::public_transfer(cap, @0xD);
         transfer::public_transfer(station, @0xD);
-        transfer::public_transfer(other_admin, @0xD);
         transfer::public_transfer(other_cap, @0xD);
         transfer::public_transfer(other_station, @0xD);
         scenario.next_tx(@0xD);
