@@ -8,6 +8,7 @@ module kirisame::umbrella {
     
     public struct AdminCap has key, store {
         id: UID,
+        payout_address: address,
     }
 
     public struct StationCap has key, store {
@@ -56,7 +57,14 @@ module kirisame::umbrella {
         last_condition_status: ConditionStatus,
 
         checkout_payout_address: Option<address>,
+        admin_payout_address: Option<address>,
         owner_count: u64,
+    }
+
+    public enum StationStatus has copy, drop, store {
+        Active,
+        Removing,
+        Removed,
     }
 
     public struct Station has key, store {
@@ -68,6 +76,9 @@ module kirisame::umbrella {
         payout_address: address,
         // Fixed at station creation; operators cannot redirect forfeited holds.
         maintenance_reserve: address,
+        admin_payout_address: address,
+        status: StationStatus,
+        docked_count: u64,
     }
 
     const MAX_LATITUDE_E6: u64 = 180_000_000;
@@ -85,8 +96,11 @@ module kirisame::umbrella {
     const EInspectionClosed: u64 = 9;
     const EReviewAlreadyFinalized: u64 = 10;
     const EUnsettledCondition: u64 = 11;
+    const EStationInactive: u64 = 12;
+    const EStationNotRemoving: u64 = 13;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
+    const ADMIN_PERCENT: u64 = 10;
     const PURCHASE_PRICE: u64 = 100_000_000;
     const CONDITION_BOND: u64 = 30_000_000;
     const FEE_PER_MS: u64 = 330;
@@ -94,14 +108,14 @@ module kirisame::umbrella {
 
     fun init(ctx: &mut TxContext) {
         transfer::transfer(
-            AdminCap {id: object::new(ctx)},
+            AdminCap {id: object::new(ctx), payout_address: ctx.sender()},
             ctx.sender(),
         );
     }
 
     /// Create a new station
     public fun admin_create_station(
-        _admin: &AdminCap,
+        admin: &AdminCap,
         display_name: String,
         location_name: String,
         latitude_e6: u64,
@@ -120,6 +134,9 @@ module kirisame::umbrella {
             longitude_e6,
             payout_address,
             maintenance_reserve: ctx.sender(),
+            admin_payout_address: admin.payout_address,
+            status: StationStatus::Active,
+            docked_count: 0,
         };
         let station_id = object::id(&station);
         transfer::share_object(station);
@@ -131,6 +148,49 @@ module kirisame::umbrella {
             ctx.sender(),
         );
     }
+
+    /// Disable station operations immediately. Removal completes only after all
+    /// docked umbrellas have been retired with admin_retire_station_umbrella.
+    /// Repeated calls are harmless; the station record remains for past payouts
+    /// and quarantine reviews. No StationCap is needed or trusted for removal.
+    public fun admin_remove_station(_admin: &AdminCap, station: &mut Station) {
+        station.status = if (station.docked_count == 0) {
+            StationStatus::Removed
+        } else {
+            StationStatus::Removing
+        };
+    }
+
+    /// Mandatory removal step, composable in bounded PTBs. The tracked count
+    /// prevents omission from completing removal. Refund rather than confiscate
+    /// the docked item's pending hold, preserving the recorded condition history.
+    public fun admin_retire_station_umbrella(
+        _admin: &AdminCap,
+        station: &mut Station,
+        umbrella: &mut Umbrella,
+        ctx: &mut TxContext,
+    ) {
+        assert!(station.status == StationStatus::Removing, EStationNotRemoving);
+        assert!(umbrella.state == UmbrellaState::Docked, EInvalidState);
+        assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
+        assert!(umbrella.active_escrow.value() == 0, EUnsettledCondition);
+        pay_pending_condition(umbrella, ctx);
+        assert!(umbrella.pending_condition.value() == 0, EUnsettledCondition);
+        umbrella.current_station_id = option::none();
+        umbrella.state = UmbrellaState::Retired;
+        station.docked_count = station.docked_count - 1;
+        if (station.docked_count == 0) station.status = StationStatus::Removed;
+    }
+
+    public fun station_is_removing(station: &Station): bool {
+        station.status == StationStatus::Removing
+    }
+
+    public fun station_is_removed(station: &Station): bool {
+        station.status == StationStatus::Removed
+    }
+
+    public fun station_docked_count(station: &Station): u64 { station.docked_count }
 
     /// Posts the supplier's condition bond and creates an umbrella awaiting deposit.
     public fun user_create_umbrella(bond: Coin<SUI>, ctx: &mut TxContext) {
@@ -156,6 +216,7 @@ module kirisame::umbrella {
             last_condition_cycle: 0,
             last_condition_status: ConditionStatus::Pending,
             checkout_payout_address: option::none(),
+            admin_payout_address: option::none(),
             owner_count: 0,
         });
     }
@@ -163,12 +224,13 @@ module kirisame::umbrella {
     /// Station attests physical receipt of a new umbrella or an eligible return.
     public fun station_dock_umbrella(
         cap: &StationCap,
-        station: &Station,
+        station: &mut Station,
         umbrella: &mut Umbrella,
         expected_owner_count: u64,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
+        assert!(station.status == StationStatus::Active, EStationInactive);
         assert!(cap.station == object::id(station), EWrongStation);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         match (umbrella.state) {
@@ -184,8 +246,9 @@ module kirisame::umbrella {
 
                 pay_pending_condition(umbrella, ctx);
                 // Quotient/remainder arithmetic floors shares without overflowing.
-                let supplier_share = share(usage, 70);
-                let checkout_share = share(usage, 15);
+                let proceeds = pay_admin_share(umbrella, usage, ctx);
+                let supplier_share = share(proceeds, 70);
+                let checkout_share = share(proceeds, 15);
                 pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
                 pay(
                     &mut umbrella.active_escrow,
@@ -195,7 +258,7 @@ module kirisame::umbrella {
                 );
                 pay(
                     &mut umbrella.active_escrow,
-                    usage - supplier_share - checkout_share,
+                    proceeds - supplier_share - checkout_share,
                     station.payout_address,
                     ctx,
                 );
@@ -218,17 +281,19 @@ module kirisame::umbrella {
 
         umbrella.current_station_id = option::some(object::id(station));
         umbrella.state = UmbrellaState::Docked;
+        station.docked_count = station.docked_count + 1;
     }
 
     /// Buyer purchases a docked umbrella and begins its inspection window.
     public fun user_undock_umbrella(
-        station: &Station,
+        station: &mut Station,
         umbrella: &mut Umbrella,
         payment: Coin<SUI>,
         expected_owner_count: u64,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
+        assert!(station.status == StationStatus::Active, EStationInactive);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         match (umbrella.state) {
             UmbrellaState::Docked => {
@@ -240,6 +305,7 @@ module kirisame::umbrella {
                 umbrella.holder = option::some(ctx.sender());
                 umbrella.checkout_station_id = option::some(object::id(station));
                 umbrella.checkout_payout_address = option::some(station.payout_address);
+                umbrella.admin_payout_address = option::some(station.admin_payout_address);
                 umbrella.checkout_time_ms = clock.timestamp_ms();
                 umbrella.inspection_deadline_ms = umbrella.checkout_time_ms + INSPECTION_WINDOW_MS;
                 umbrella.owner_count = umbrella.owner_count + 1;
@@ -253,6 +319,7 @@ module kirisame::umbrella {
 
         umbrella.current_station_id = option::none();
         umbrella.state = UmbrellaState::Held;
+        station.docked_count = station.docked_count - 1;
     }
 
     /// Station attests an inspection-window rejection, including wear or
@@ -266,6 +333,7 @@ module kirisame::umbrella {
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
+        assert!(station.status == StationStatus::Active, EStationInactive);
         assert!(cap.station == object::id(station), EWrongStation);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         assert!(umbrella.state == UmbrellaState::Held, EInvalidState);
@@ -350,11 +418,12 @@ module kirisame::umbrella {
         if (usage_fee(umbrella, clock.timestamp_ms()) < umbrella.purchase_price) return;
 
         let amount = umbrella.active_escrow.value();
-        let supplier_share = share(amount, 70);
+        let proceeds = pay_admin_share(umbrella, amount, ctx);
+        let supplier_share = share(proceeds, 70);
         pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
         pay(
             &mut umbrella.active_escrow,
-            amount - supplier_share,
+            proceeds - supplier_share,
             *umbrella.checkout_payout_address.borrow(),
             ctx,
         );
@@ -406,6 +475,16 @@ module kirisame::umbrella {
         }
     }
 
+    /// Take 10% of earned revenue only. Refunds, condition funds and reserve
+    /// forfeitures are excluded. Floor in MIST; the station receives split dust.
+    fun pay_admin_share(umbrella: &mut Umbrella, revenue: u64, ctx: &mut TxContext): u64 {
+        let amount = share(revenue, ADMIN_PERCENT);
+        if (amount > 0) {
+            pay(&mut umbrella.active_escrow, amount, *umbrella.admin_payout_address.borrow(), ctx);
+        };
+        revenue - amount
+    }
+
     fun share(amount: u64, percent: u64): u64 {
         (amount / 100) * percent + (amount % 100) * percent / 100
     }
@@ -440,9 +519,12 @@ module kirisame::umbrella {
             longitude_e6: 0,
             payout_address,
             maintenance_reserve: ctx.sender(),
+            admin_payout_address: @0x99,
+            status: StationStatus::Active,
+            docked_count: 0,
         };
         let cap = StationCap { id: object::new(ctx), station: object::id(&station) };
-        (AdminCap { id: object::new(ctx) }, cap, station)
+        (AdminCap { id: object::new(ctx), payout_address: @0x99 }, cap, station)
     }
 
     #[test_only]
@@ -455,6 +537,7 @@ module kirisame::umbrella {
         };
         umbrella.holder = option::some(@0xB);
         umbrella.checkout_payout_address = option::some(@0xC);
+        umbrella.admin_payout_address = option::some(@0x99);
         umbrella.inspection_deadline_ms = 120_000;
         umbrella.owner_count = 1;
         umbrella.active_escrow.join(sui::balance::create_for_testing<SUI>(PURCHASE_PRICE));

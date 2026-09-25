@@ -22,7 +22,7 @@ module kirisame::settle_pending_payments_tests {
         let mut asset = scenario.take_shared<Umbrella>();
         if (state != 0) umbrella::prepare_return_for_testing(&mut asset, state, already_paid);
         let (old_supplier, old_created, old_owner, old_pending, old_escrow, old_holder, old_current, old_checkout, old_payout, old_time, old_deadline, old_count, old_price, old_bond, old_rate) = umbrella::snapshot_for_testing(&asset);
-        let (admin, cap, station) = umbrella::station_for_testing(@0xD, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xD, scenario.ctx());
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(now);
         let releases_hold = state == 2 && now >= 120_000 && !already_paid;
@@ -44,17 +44,18 @@ module kirisame::settle_pending_payments_tests {
             let (sold, paid, _, _) = umbrella::sale_snapshot_for_testing(&asset);
             assert!(sold == (state == 4) && paid == (already_paid || releases_hold));
         };
-        if (try_return) umbrella::station_dock_umbrella(&cap, &station, &mut asset, 1, &clock, scenario.ctx());
+        if (try_return) umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
         test_scenario::return_shared(asset);
         clock.destroy_for_testing();
         transfer::public_transfer(admin, @0xD);
         transfer::public_transfer(cap, @0xD);
         transfer::public_transfer(station, @0xD);
         scenario.next_tx(@0xD);
-        let supplier_revenue = if (settles) { 70_000_000 } else { 0 };
+        assert!(received(&scenario, @0x99) == if (settles) { 10_000_000 } else { 0 });
+        let supplier_revenue = if (settles) { 63_000_000 } else { 0 };
         let prior_hold = if (releases_hold) { 30_000_000 } else { 0 };
         assert!(received(&scenario, @0xA) == supplier_revenue + prior_hold);
-        assert!(received(&scenario, @0xC) == if (settles) { 30_000_000 } else { 0 });
+        assert!(received(&scenario, @0xC) == if (settles) { 27_000_000 } else { 0 });
         assert!(received(&scenario, @0xB) == 0 && received(&scenario, @0xD) == 0);
         scenario.end();
     }
@@ -78,18 +79,18 @@ module kirisame::settle_pending_payments_tests {
     fun successor_sweep(final_sale: bool, quarantine: bool) {
         let mut scenario = test_scenario::begin(@0xA);
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
-        let (admin, cap, station) = umbrella::station_for_testing(@0xE, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         transfer::public_transfer(admin, @0xD);
         transfer::public_transfer(cap, @0xD);
         transfer::public_share_object(station);
 
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let cap = scenario.take_from_sender<umbrella::StationCap>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(0);
-        umbrella::station_dock_umbrella(&cap, &station, &mut asset, 0, &clock, scenario.ctx());
+        umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 0, &clock, scenario.ctx());
         test_scenario::return_shared(asset);
         test_scenario::return_shared(station);
         scenario.return_to_sender(cap);
@@ -97,10 +98,10 @@ module kirisame::settle_pending_payments_tests {
 
         scenario.next_tx(@0xB);
         let mut asset = scenario.take_shared<Umbrella>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(0);
-        umbrella::user_undock_umbrella(&station, &mut asset,
+        umbrella::user_undock_umbrella(&mut station, &mut asset,
             coin::mint_for_testing<SUI>(100_000_000, scenario.ctx()), 0, &clock, scenario.ctx());
         test_scenario::return_shared(asset);
         test_scenario::return_shared(station);
@@ -108,13 +109,13 @@ module kirisame::settle_pending_payments_tests {
 
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let cap = scenario.take_from_sender<umbrella::StationCap>();
         let admin = scenario.take_from_sender<umbrella::AdminCap>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(120_000);
         if (!final_sale) umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
-        umbrella::station_dock_umbrella(&cap, &station, &mut asset, 1, &clock, scenario.ctx());
+        umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
         // A delayed sweep after the return must leave Bob's new hold pending.
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         let (_, _, owner, pending, escrow, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
@@ -129,10 +130,10 @@ module kirisame::settle_pending_payments_tests {
         assert!(received(&scenario, @0xA) == 30_000_000);
         assert!(received(&scenario, @0xB) == 70_000_000);
         let mut asset = scenario.take_shared<Umbrella>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(120_000);
-        umbrella::user_undock_umbrella(&station, &mut asset,
+        umbrella::user_undock_umbrella(&mut station, &mut asset,
             coin::mint_for_testing<SUI>(100_000_000, scenario.ctx()), 1, &clock, scenario.ctx());
         test_scenario::return_shared(asset);
         test_scenario::return_shared(station);
@@ -140,7 +141,7 @@ module kirisame::settle_pending_payments_tests {
 
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let cap = scenario.take_from_sender<umbrella::StationCap>();
         let admin = scenario.take_from_sender<umbrella::AdminCap>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
@@ -168,6 +169,7 @@ module kirisame::settle_pending_payments_tests {
             scenario.next_tx(@0xD);
             assert!(received(&scenario, @0xB) == 30_000_000);
             assert!(received(&scenario, @0xC) == 100_000_000);
+            assert!(received(&scenario, @0x99) == 0);
             assert!(received(&scenario, @0xA) == 0 && received(&scenario, @0xD) == 0 && received(&scenario, @0xE) == 0);
             scenario.end();
             return
@@ -189,7 +191,7 @@ module kirisame::settle_pending_payments_tests {
             let (sold, paid, _, _) = umbrella::sale_snapshot_for_testing(&asset);
             assert!(sold && paid);
         } else {
-            umbrella::station_dock_umbrella(&cap, &station, &mut asset, 2, &clock, scenario.ctx());
+            umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 2, &clock, scenario.ctx());
         };
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         let (_, _, _, pending, escrow, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
@@ -203,8 +205,9 @@ module kirisame::settle_pending_payments_tests {
         scenario.next_tx(@0xD);
         assert!(received(&scenario, @0xB) == 30_000_000);
         assert!(received(&scenario, @0xC) == if (final_sale) { 0 } else { 70_000_000 });
-        assert!(received(&scenario, @0xA) == if (final_sale) { 70_000_000 } else { 0 });
-        assert!(received(&scenario, @0xE) == if (final_sale) { 30_000_000 } else { 0 });
+        assert!(received(&scenario, @0xA) == if (final_sale) { 63_000_000 } else { 0 });
+        assert!(received(&scenario, @0x99) == if (final_sale) { 10_000_000 } else { 0 });
+        assert!(received(&scenario, @0xE) == if (final_sale) { 27_000_000 } else { 0 });
         assert!(received(&scenario, @0xD) == 0);
         scenario.end();
     }

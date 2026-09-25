@@ -13,7 +13,7 @@ module kirisame::quarantine_umbrella_tests {
         if (state != 0) {
             umbrella::prepare_return_for_testing(&mut asset, state, false);
         };
-        let (admin, cap, station) = umbrella::station_for_testing(@0xE, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         let (other_admin, other_cap, other_station) = umbrella::station_for_testing(@0xF, scenario.ctx());
         transfer::public_transfer(admin, @0x99);
         transfer::public_transfer(other_admin, @0x99);
@@ -28,7 +28,7 @@ module kirisame::quarantine_umbrella_tests {
         let other_cap = scenario.take_from_sender<umbrella::StationCap>();
         let cap = scenario.take_from_sender<umbrella::StationCap>();
         let other_station = scenario.take_from_sender<umbrella::Station>();
-        let station = scenario.take_from_sender<umbrella::Station>();
+        let mut station = scenario.take_from_sender<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(now);
         umbrella::station_quarantine_umbrella(

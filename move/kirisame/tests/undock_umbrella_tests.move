@@ -10,16 +10,16 @@ module kirisame::undock_umbrella_tests {
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
         scenario.next_tx(@0xB);
         let mut asset = scenario.take_shared<Umbrella>();
-        let (admin, cap, station) = umbrella::station_for_testing(@0xC, scenario.ctx());
-        let (other_admin, other_cap, other) = umbrella::station_for_testing(@0xD, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xC, scenario.ctx());
+        let (other_admin, other_cap, mut other) = umbrella::station_for_testing(@0xD, scenario.ctx());
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(1_000);
         if (state == 1) {
-            umbrella::station_dock_umbrella(&cap, &station, &mut asset, 0, &clock, scenario.ctx());
+            umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 0, &clock, scenario.ctx());
         } else if (state > 1) {
             umbrella::prepare_return_for_testing(&mut asset, state, false);
         };
-        umbrella::user_undock_umbrella(if (wrong_station) { &other } else { &station }, &mut asset,
+        umbrella::user_undock_umbrella(if (wrong_station) { &mut other } else { &mut station }, &mut asset,
             coin::mint_for_testing<SUI>(payment, scenario.ctx()), cycle, &clock, scenario.ctx());
         let (_, _, owner, pending, escrow, holder, current, checkout, payout, time, deadline, count, _, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(owner == option::some(@0xA) && pending == 30_000_000 && escrow == 100_000_000);
@@ -29,12 +29,12 @@ module kirisame::undock_umbrella_tests {
         let (_, hold, hold_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(hold == 30_000_000 && hold_cycle == 0 && is_pending);
         if (duplicate) {
-            umbrella::user_undock_umbrella(&station, &mut asset, coin::mint_for_testing<SUI>(payment, scenario.ctx()), 1, &clock, scenario.ctx());
+            umbrella::user_undock_umbrella(&mut station, &mut asset, coin::mint_for_testing<SUI>(payment, scenario.ctx()), 1, &clock, scenario.ctx());
         };
         // Returning successfully verifies that purchase entered Held.
         clock.set_for_testing(deadline);
-        umbrella::station_dock_umbrella(&cap, &station, &mut asset, 1, &clock, scenario.ctx());
-        umbrella::user_undock_umbrella(&station, &mut asset, coin::mint_for_testing<SUI>(payment, scenario.ctx()), 1, &clock, scenario.ctx());
+        umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
+        umbrella::user_undock_umbrella(&mut station, &mut asset, coin::mint_for_testing<SUI>(payment, scenario.ctx()), 1, &clock, scenario.ctx());
         let (_, _, next_owner, next_pending, next_escrow, _, _, _, _, next_time, next_deadline, next_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(next_owner == option::some(@0xB) && next_pending == 30_000_000 && next_escrow == 100_000_000);
         assert!(next_count == 2 && next_time == deadline && next_deadline == deadline + 120_000);

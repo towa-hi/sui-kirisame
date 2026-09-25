@@ -14,7 +14,7 @@ module kirisame::dock_umbrella_tests {
         if (state != 0) {
             umbrella::prepare_return_for_testing(&mut asset, state, paid);
         };
-        let (admin, cap, station) = umbrella::station_for_testing(@0xD, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xD, scenario.ctx());
         let (other_admin, other_cap, other_station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         transfer::public_transfer(admin, @0x99);
         transfer::public_transfer(other_admin, @0x99);
@@ -29,15 +29,15 @@ module kirisame::dock_umbrella_tests {
         let other_cap = scenario.take_from_sender<umbrella::StationCap>();
         let cap = scenario.take_from_sender<umbrella::StationCap>();
         let other_station = scenario.take_from_sender<umbrella::Station>();
-        let station = scenario.take_from_sender<umbrella::Station>();
+        let mut station = scenario.take_from_sender<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(now);
         umbrella::station_dock_umbrella(
-            if (wrong_station) { &other_cap } else { &cap }, &station,
+            if (wrong_station) { &other_cap } else { &cap }, &mut station,
             &mut asset, cycle, &clock, scenario.ctx(),
         );
         if (duplicate) {
-            umbrella::station_dock_umbrella(&cap, &station, &mut asset, cycle, &clock, scenario.ctx());
+            umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, cycle, &clock, scenario.ctx());
         };
         let (_, _, owner, pending, escrow, holder, current_station, _, _, _, _, owner_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
         let (docked, amount, condition_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
@@ -56,17 +56,21 @@ module kirisame::dock_umbrella_tests {
         transfer::public_transfer(other_station, @0xD);
         scenario.next_tx(@0xD);
         if (state == 0) {
+            assert!(received(&scenario, @0x99) == 0);
             assert!(received(&scenario, @0xA) == 0);
             assert!(received(&scenario, @0xB) == 0);
             assert!(received(&scenario, @0xC) == 0);
             assert!(received(&scenario, @0xD) == 0);
         } else {
-            let supplier_share = usage * 70 / 100;
-            let checkout_share = usage * 15 / 100;
+            let admin_share = usage / 10;
+            let proceeds = usage - admin_share;
+            let supplier_share = proceeds * 70 / 100;
+            let checkout_share = proceeds * 15 / 100;
+            assert!(received(&scenario, @0x99) == admin_share);
             assert!(received(&scenario, @0xA) == supplier_share + if (paid) { 0 } else { 30_000_000 });
             assert!(received(&scenario, @0xB) == 100_000_000 - usage - hold);
             assert!(received(&scenario, @0xC) == checkout_share);
-            assert!(received(&scenario, @0xD) == usage - supplier_share - checkout_share);
+            assert!(received(&scenario, @0xD) == proceeds - supplier_share - checkout_share);
         };
         scenario.end();
     }

@@ -27,10 +27,10 @@ module kirisame::quarantine_review_tests {
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
-        let (admin, cap, station) = umbrella::station_for_testing(@0xE, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         if (mode == 7) {
-            umbrella::station_dock_umbrella(&cap, &station, &mut asset, 0, &clock, scenario.ctx());
+            umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 0, &clock, scenario.ctx());
             umbrella::admin_review_quarantined_umbrella(&admin, &station, &mut asset, 0, true, scenario.ctx());
         };
         umbrella::prepare_return_for_testing(&mut asset, 2, false);
@@ -66,7 +66,7 @@ module kirisame::quarantine_review_tests {
         assert!(!test_scenario::has_most_recent_for_address<umbrella::StationCap>(@0xE));
         let mut asset = scenario.take_shared<Umbrella>();
         let admin = scenario.take_from_sender<umbrella::AdminCap>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let (other_admin, other_cap, other_station) = umbrella::station_for_testing(@0xF, scenario.ctx());
         transfer::public_transfer(other_admin, @0x99);
         let approve = mode != 1 && mode != 8;
@@ -116,7 +116,7 @@ module kirisame::quarantine_review_tests {
         if (mode == 6) {
             let mut asset = scenario.take_shared<Umbrella>();
             let admin = scenario.take_from_sender<umbrella::AdminCap>();
-            let station = scenario.take_shared<umbrella::Station>();
+            let mut station = scenario.take_shared<umbrella::Station>();
             umbrella::admin_review_quarantined_umbrella(&admin, &station, &mut asset, 1, false, scenario.ctx());
             test_scenario::return_shared(asset);
             scenario.return_to_sender(admin);

@@ -22,7 +22,7 @@ module kirisame::retire_umbrella_tests {
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
-        let (admin, cap, station) = umbrella::station_for_testing(@0xE, scenario.ctx());
+        let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         umbrella::prepare_return_for_testing(&mut asset, 2, false);
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(60_000);
@@ -37,7 +37,7 @@ module kirisame::retire_umbrella_tests {
         assert!(!test_scenario::has_most_recent_for_address<umbrella::StationCap>(@0xE));
         let mut asset = scenario.take_shared<Umbrella>();
         let admin = scenario.take_from_sender<umbrella::AdminCap>();
-        let station = scenario.take_shared<umbrella::Station>();
+        let mut station = scenario.take_shared<umbrella::Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(180_000);
         if (mode != 1) {
@@ -60,7 +60,7 @@ module kirisame::retire_umbrella_tests {
         assert!(new_count == count && new_price == price && new_bond == bond && new_rate == rate);
         assert!(new_amount == amount && new_cycle == cycle && umbrella::condition_status_for_testing(&asset) == status);
         if (mode == 4) umbrella::admin_retire_umbrella(&admin, &mut asset, 1);
-        if (mode == 6) umbrella::user_undock_umbrella(&station, &mut asset,
+        if (mode == 6) umbrella::user_undock_umbrella(&mut station, &mut asset,
             coin::mint_for_testing<SUI>(100_000_000, scenario.ctx()), 1, &clock, scenario.ctx());
         if (mode == 8) umbrella::admin_review_quarantined_umbrella(&admin, &station, &mut asset, 1, !approve, scenario.ctx());
         test_scenario::return_shared(asset);
@@ -75,10 +75,10 @@ module kirisame::retire_umbrella_tests {
         assert!(received(&scenario, @0xE) == 0 && received(&scenario, @0xF) == 0);
         if (mode == 5 || mode == 7) {
             let mut asset = scenario.take_shared<Umbrella>();
-            let station = scenario.take_shared<umbrella::Station>();
+            let mut station = scenario.take_shared<umbrella::Station>();
             let cap = scenario.take_from_sender<umbrella::StationCap>();
             let clock = sui::clock::create_for_testing(scenario.ctx());
-            if (mode == 5) umbrella::station_dock_umbrella(&cap, &station, &mut asset, 1, &clock, scenario.ctx());
+            if (mode == 5) umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
             if (mode == 7) umbrella::station_quarantine_umbrella(&cap, &station, &mut asset, 1, &clock, scenario.ctx());
             test_scenario::return_shared(asset);
             test_scenario::return_shared(station);
