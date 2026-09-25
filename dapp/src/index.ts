@@ -1,8 +1,23 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { SuiGrpcClient } from "@mysten/sui/grpc";
+import { isValidSuiAddress } from "@mysten/sui/utils";
 import { page } from "./page.js";
 
 const app = new Hono();
+const sui = new SuiGrpcClient({ network: "testnet", baseUrl: "https://fullnode.testnet.sui.io:443" });
+
+app.get("/api/balance/:address", async (c) => {
+  const owner = c.req.param("address");
+  c.header("Cache-Control", "no-store");
+  if (!isValidSuiAddress(owner)) return c.json({ error: "Invalid Sui address" }, 400);
+  try {
+    const { balance } = await sui.getBalance({ owner, signal: AbortSignal.timeout(10000) });
+    return c.json({ balance: balance.balance, network: "testnet" });
+  } catch {
+    return c.json({ error: "Unable to load SUI balance. Please try again." }, 502);
+  }
+});
 
 app.get("/", (c) => c.html(page));
 app.get("/health", (c) => c.json({ ok: true }));
