@@ -1,7 +1,8 @@
+import { scanMarkup, scanStyles, scanScript } from './scan.js';
 import { stationMarkup } from './station.js';
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
 
-import { supplyMarkup, supplyScript } from "./supply.js";
+import { supplyMarkup, supplyOverlay, supplyScript } from "./supply.js";
 
 const walletAddressNames = {
   '0xc5313e6b1943b8cc82f266d72ef2862a2ce32c8a6e1d609a5d4c55ba0cccb604': 'mono',
@@ -93,6 +94,7 @@ export const page = /* html */ `<!doctype html>
       .wallet-status:empty { display: none; }
       .status { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #cad4cc; color: #526358; }
       ${adminStyles}
+      ${scanStyles}
       #supply-error { color: #9a332e; }
       #supply-error:empty, #supply-result:empty { display: none; }
     </style>
@@ -117,8 +119,8 @@ export const page = /* html */ `<!doctype html>
             <button id="supply-tab" role="tab" aria-selected="false" aria-controls="supply-panel" tabindex="-1">Supply</button>
           </nav>
           <section id="purchase-panel" role="tabpanel" aria-labelledby="purchase-tab">
-            <button type="button" class="umbrella-action">SCAN UMBRELLA</button>
-            <p class="status">Under construction. Features are coming one at a time.</p>
+            <button id="scan-umbrella" type="button" class="umbrella-action">SCAN UMBRELLA</button>
+            <p class="status">Scan an umbrella’s QR code or barcode to see its details.</p>
           </section>
           <section id="supply-panel" role="tabpanel" aria-labelledby="supply-tab" hidden>
             ${supplyMarkup}
@@ -134,9 +136,12 @@ export const page = /* html */ `<!doctype html>
       </section>
     </main>
     ${adminOverlay}
+    ${supplyOverlay}
+    ${scanMarkup}
     <script>
       ${adminScript}
       ${supplyScript}
+      ${scanScript}
       const buttons = [...document.querySelectorAll('.connect-wallet')];
       const statuses = [...document.querySelectorAll('.wallet-status')];
       const details = [...document.querySelectorAll('.wallet-details')];

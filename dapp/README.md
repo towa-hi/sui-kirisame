@@ -85,3 +85,13 @@ wallet can create an umbrella; no AdminCap is required. The umbrella starts in
 `move/kirisame/Published.toml`; `KIRISAME_PACKAGE_ID` overrides it. The form keeps
 the selected color after failure and includes a transaction link when a digest
 is available. Success is shown only after chain confirmation.
+
+## Scan umbrella
+
+In **User → Purchase**, **Scan umbrella** opens a camera modal, preferring the rear camera. QR codes and supported 1D/2D barcodes are decoded locally with a bundled ZXing reader; camera images are not uploaded. Once decoded, the camera stops and the app looks up the object on Sui testnet. No wallet connection is needed.
+
+Labels can contain a full `0x` + 64 hexadecimal-character object ID, a `https://suiscan.xyz/testnet/object/<id>` link, or a same-origin app URL with `?umbrella=<id>`. Arbitrary product numbers have no mapping to Sui objects. A manual ID entry and **Scan again** are available for retries or unsupported cameras. Camera access requires HTTPS (or localhost) and browser permission.
+
+`GET /api/umbrellas/:id` checks the object's full package/module/type before decoding its BCS contents. The modal displays color, state, purchase price, condition bond, hourly usage fee, current station/holder, supplier, checkout count, condition-fund status, and an explorer link. The lookup uses the current published package by default, or `KIRISAME_ORIGINAL_PACKAGE_ID` / `KIRISAME_PACKAGE_ID` overrides. Keep the BCS layout in `src/umbrella-routes.ts` synchronized with contract upgrades.
+
+Tests cover object validation, lookup failures, precise amounts, duplicate scans, camera denial, and cleanup when closing during camera permission or lookup. Physical label scanning in the target phone/Slush browser still needs device testing.

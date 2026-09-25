@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ObjectError } from '@mysten/sui/client';
+import { umbrellaRoutes, umbrellaBcs } from '../dist/umbrella-routes.js';
+import { page } from '../dist/page.js';
+
+const id = '0x' + '1'.repeat(64);
+const pkg = process.env.KIRISAME_ORIGINAL_PACKAGE_ID || process.env.KIRISAME_PACKAGE_ID || '0x2c4144fcc222026470b4da7483898c812c0e90a516cbbe25f3478dfb82a0ee4a';
+const value = {
+  id, supplier: id, color: 1, state: { Docked: true },
+  current_station_id: id, checkout_station_id: null, holder: null,
+  checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000',
+  active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id,
+  last_condition_amount: '30000000', last_condition_cycle: '0', last_condition_status: { Pending: true },
+  checkout_payout_address: null, admin_payout_address: null, owner_count: '9007199254740993',
+};
+test('lookup decodes contract data without losing integer precision', async () => {
+  const routes = umbrellaRoutes({ getObject: async options => {
+    assert.equal(options.objectId, id);
+    assert.equal(options.include.content, true);
+    return { object: { objectId: id, type: `${pkg}::umbrella::Umbrella`, content: umbrellaBcs.serialize(value).toBytes() } };
+  } });
+  const response = await routes.request('/' + id);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const data = await response.json();
+  assert.equal(data.color, 'Black'); assert.equal(data.state, 'Docked');
+  assert.equal(data.station, id); assert.equal(data.holder, null);
+  assert.equal(data.purchasePrice, '100000000'); assert.equal(data.ownerCount, '9007199254740993');
+});
+test('invalid scan IDs never reach the chain', async () => {
+  const routes = umbrellaRoutes({ getObject: () => { throw new Error('should not be called'); } });
+  for (const input of ['bad', '0x2', '0x' + 'g'.repeat(64)]) assert.equal((await routes.request('/' + input)).status, 400);
+});
+test('rejects unrelated objects, missing objects and chain failures distinctly', async () => {
+  const wrong = umbrellaRoutes({ getObject: async () => ({ object: { type: '0x2::coin::Coin<0x2::sui::SUI>' } }) });
+  assert.equal((await wrong.request('/' + id)).status, 422);
+  const otherDeployment = umbrellaRoutes({ getObject: async () => ({ object: { type: `${id}::umbrella::Umbrella` } }) });
+  assert.equal((await otherDeployment.request('/' + id)).status, 422);
+  for (const reason of ['notFound', 'deleted']) {
+    const missing = umbrellaRoutes({ getObject: async () => { throw new ObjectError('NOT_FOUND', 'missing', { reason }); } });
+    assert.equal((await missing.request('/' + id)).status, 404);
+  }
+  const failed = umbrellaRoutes({ getObject: async () => { throw new Error('secret internal detail'); } });
+  const response = await failed.request('/' + id);
+  assert.equal(response.status, 502);
+  assert.doesNotMatch(await response.text(), /secret/);
+});
+test('all rendered inline scripts parse', () => {
+  for (const match of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(match[1]);
+});

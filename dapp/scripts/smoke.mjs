@@ -26,6 +26,11 @@ try {
   assert.match(page.headers.get("content-type"), /text\/html/);
   assert.match(await page.text(), /<title>Kirisame<\/title>/);
 
+  const decoder = await fetch(`http://127.0.0.1:${port}/assets/barcode-reader.js`);
+  assert.equal(decoder.status, 200);
+  assert.match(decoder.headers.get('content-type'), /javascript/);
+  assert.match(await decoder.text(), /ZXingBrowser/);
+
   const health = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(5000) });
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { ok: true });

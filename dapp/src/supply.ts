@@ -1,7 +1,14 @@
 export const supplyMarkup = /* html */ `
+  <button type="button" id="supply-open" class="umbrella-action" aria-haspopup="dialog" aria-controls="supply-dialog" disabled>Create umbrella</button>
+  <p id="supply-access" role="status">Connect Slush Wallet to create an umbrella on testnet.</p>
+  <p id="supply-result" role="status"></p>
+`;
+
+export const supplyOverlay = /* html */ `
+  <dialog id="supply-dialog" aria-labelledby="supply-dialog-title" aria-describedby="supply-dialog-description">
   <form id="supply-form">
-    <div class="admin-heading"><h1>Create umbrella</h1>
-      <p>Register an umbrella to supply to a station.</p></div>
+    <h2 id="supply-dialog-title">Create umbrella</h2>
+    <p id="supply-dialog-description">Register an umbrella to supply to a station.</p>
     <label class="admin-field" for="umbrella-color">Color
       <select id="umbrella-color" name="color" required>
         <option value="">Choose a color</option>
@@ -11,14 +18,21 @@ export const supplyMarkup = /* html */ `
       </select>
     </label>
     <p>A 0.03 SUI condition bond is held by the contract. You also pay network gas fees. After creation, bring the umbrella to a station for docking.</p>
-    <button type="submit" id="supply-confirm" class="umbrella-action" disabled>Create umbrella</button>
+    <div class="modal-actions">
+      <button type="button" id="supply-cancel">Cancel</button>
+      <button type="submit" id="supply-confirm" disabled>Create umbrella</button>
+    </div>
     <p id="supply-status" role="status" aria-live="polite">Connect Slush Wallet to create an umbrella on testnet.</p>
     <p id="supply-error" role="alert"></p>
-    <p id="supply-result" role="status"></p>
   </form>
+  </dialog>
 `;
 
 export const supplyScript = /* js */ `
+  const supplyDialog = document.getElementById('supply-dialog');
+  const supplyOpen = document.getElementById('supply-open');
+  const supplyCancel = document.getElementById('supply-cancel');
+  const supplyAccess = document.getElementById('supply-access');
   const supplyForm = document.getElementById('supply-form');
   const supplyConfirm = document.getElementById('supply-confirm');
   const supplyColor = document.getElementById('umbrella-color');
@@ -27,12 +41,25 @@ export const supplyScript = /* js */ `
   const supplyResult = document.getElementById('supply-result');
   let supplyPending = false;
   function renderSupplyAccess() {
+    supplyOpen.disabled = supplyPending || !account;
+    supplyCancel.disabled = supplyPending;
+    supplyAccess.textContent = account ? 'Testnet · 0.03 SUI bond + gas' : 'Connect Slush Wallet to create an umbrella on testnet.';
+    if (!account && !supplyPending && supplyDialog.open) supplyDialog.close();
     supplyConfirm.disabled = supplyPending || !account;
     supplyColor.disabled = supplyPending;
     supplyConfirm.textContent = supplyPending ? 'Creating…' : 'Create umbrella';
     supplyForm.setAttribute('aria-busy', String(supplyPending));
     if (!supplyPending) supplyStatus.textContent = account ? 'Testnet · 0.03 SUI bond + gas' : 'Connect Slush Wallet to create an umbrella on testnet.';
   }
+  supplyOpen.addEventListener('click', () => {
+    if (supplyPending || !account) return;
+    supplyForm.reset();
+    supplyError.textContent = '';
+    renderSupplyAccess();
+    supplyDialog.showModal();
+  });
+  supplyCancel.addEventListener('click', () => { if (!supplyPending) supplyDialog.close(); });
+  supplyDialog.addEventListener('cancel', event => { if (supplyPending) event.preventDefault(); });
   function supplyTransactionLink(digest) {
     const link = document.createElement('a');
     link.href = 'https://suiscan.xyz/testnet/tx/' + encodeURIComponent(digest);
@@ -77,6 +104,7 @@ export const supplyScript = /* js */ `
       supplyResult.textContent = 'Umbrella created. Bring it to a station for docking.';
       supplyResult.append(supplyTransactionLink(digest));
       supplyForm.reset();
+      supplyDialog.close();
       showToast('Umbrella created.');
       void refreshBalance();
     } catch (error) {

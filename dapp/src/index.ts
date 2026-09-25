@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { umbrellaRoutes } from './umbrella-routes.js';
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
@@ -25,6 +27,13 @@ app.get("/api/balance/:address", async (c) => {
 app.route("/api/admin", adminRoutes(sui));
 app.route("/api/station", adminRoutes(sui, "station"));
 app.route("/api/supply", supplyRoutes());
+
+app.route('/api/umbrellas', umbrellaRoutes(sui));
+app.get('/assets/barcode-reader.js', async c => {
+  const script = await readFile(new URL('../node_modules/@zxing/browser/umd/zxing-browser.min.js', import.meta.url), 'utf8');
+  c.header('Content-Type', 'text/javascript; charset=utf-8');
+  return c.body(script);
+});
 
 app.get("/", (c) => c.html(page));
 app.get("/health", (c) => c.json({ ok: true }));

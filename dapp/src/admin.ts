@@ -62,8 +62,8 @@ export const adminStyles = /* css */ `
   .admin-field input, .admin-field select { display: block; width: 100%; margin-top: .4rem; padding: .7rem; border: 1px solid #aebeb2; border-radius: .5rem; background: #fff; color: #243c32; font: inherit; font-size: 1rem; }
   .admin-field input:focus-visible, .admin-field select:focus-visible { outline: 2px solid #557866; outline-offset: 2px; }
   .modal-actions { display: flex; gap: .65rem; margin-top: 1.4rem; }
-  #admin-cancel { border: 1px solid #cad4cc; }
-  #admin-confirm { background: #243c32; color: #fff; }
+  #admin-cancel, #supply-cancel { border: 1px solid #cad4cc; }
+  #admin-confirm, #supply-confirm { background: #243c32; color: #fff; }
   button:disabled { opacity: .55; cursor: wait; }
   #admin-error { color: #9a332e; overflow-wrap: anywhere; }
   #admin-error:empty { display: none; }
