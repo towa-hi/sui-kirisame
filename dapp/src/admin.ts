@@ -21,8 +21,8 @@ export const adminActions = [
 ];
 
 export const adminMarkup = /* html */ `
-  <div class="admin-heading"><h1>Admin functions</h1><p id="admin-mode">Testnet · Requires a wallet with the Kirisame AdminCap.</p></div>
-  <div class="admin-actions">${adminActions.map(action => `<button type="button" class="admin-action" data-action="${action.id}"><strong>${action.title}</strong><span>${action.description}</span><span class="action-arrow" aria-hidden="true">↗</span></button>`).join('')}</div>
+  <div class="admin-heading"><h1>Admin functions</h1><p id="admin-mode">Testnet · Connect mono to use admin functions.</p></div>
+  <div class="admin-actions">${adminActions.map(action => `<button type="button" class="admin-action" disabled data-action="${action.id}"><strong>${action.title}</strong><span>${action.description}</span><span class="action-arrow" aria-hidden="true">↗</span></button>`).join('')}</div>
 `;
 
 export const adminOverlay = /* html */ `
@@ -32,7 +32,7 @@ export const adminOverlay = /* html */ `
       <p id="admin-dialog-description"></p>
       <fieldset id="admin-fields"></fieldset>
       <p id="admin-error" role="alert"></p>
-      <div class="modal-actions"><button type="button" id="admin-cancel">Cancel</button><button type="submit" id="admin-confirm">Confirm</button></div>
+      <div class="modal-actions"><button type="button" id="admin-cancel">Cancel</button><button type="submit" id="admin-confirm" disabled>Confirm</button></div>
       <p id="admin-pending" role="status" hidden><span class="spinner" aria-hidden="true"></span> <span id="admin-pending-label">Awaiting server response…</span></p>
     </form>
   </dialog>
@@ -46,7 +46,8 @@ export const adminStyles = /* css */ `
   .admin-heading p { font-size: .8rem; color: #526358; margin: .4rem 0; }
   .admin-actions { display: grid; gap: .65rem; }
   .admin-action { position: relative; text-align: left; padding: 1rem 2.5rem 1rem 1rem; background: #fff; border: 1px solid #cad4cc; color: #243c32; }
-  .admin-action:hover { background: #eaf0e9; border-color: #557866; }
+  .admin-action:not(:disabled):hover { background: #eaf0e9; border-color: #557866; }
+  .admin-action:disabled { cursor: not-allowed; }
   .admin-action strong, .admin-action span { display: block; }
   .admin-action strong { font-size: .95rem; }
   .admin-action span { font-size: .8rem; line-height: 1.5; margin-top: .3rem; color: #526358; }
@@ -99,20 +100,28 @@ export const adminScript = /* js */ `
     clearTimeout(toastTimer);
     toast.hidden = true;
   });
+  function renderAdminAccess() {
+    const allowed = isMonoWallet();
+    for (const button of document.querySelectorAll('.admin-action')) button.disabled = adminPending || !allowed;
+    adminConfirm.disabled = adminPending || !allowed;
+    adminFields.disabled = adminPending || !allowed;
+    document.getElementById('admin-mode').textContent = allowed
+      ? 'Testnet · mono connected. Admin functions require the Kirisame AdminCap.'
+      : 'Testnet · Connect mono to use admin functions.';
+    if (!allowed && !adminPending && adminDialog.open) adminDialog.close();
+  }
   function setAdminPending(value) {
     adminPending = value;
     document.getElementById('admin-pending-label').textContent = 'Awaiting server response…';
     document.body.dataset.state = value ? 'awaiting-response' : 'idle';
     adminForm.setAttribute('aria-busy', String(value));
-    adminFields.disabled = value;
-    adminConfirm.disabled = value;
     adminCancel.disabled = value;
     adminConfirm.textContent = value ? 'Submitting…' : 'Confirm';
     document.getElementById('admin-pending').hidden = !value;
-    for (const button of document.querySelectorAll('.admin-action')) button.disabled = value;
+    renderAdminAccess();
   }
   for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
-    if (adminPending) return;
+    if (adminPending || !isMonoWallet()) return;
     adminAction = adminActions.find(action => action.id === button.dataset.action);
     document.getElementById('admin-dialog-title').textContent = adminAction.title;
     document.getElementById('admin-dialog-description').textContent = adminAction.description;
@@ -155,7 +164,7 @@ export const adminScript = /* js */ `
   adminDialog.addEventListener('cancel', event => { if (adminPending) event.preventDefault(); });
   adminForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (adminPending || !adminAction) return;
+    if (adminPending || !adminAction || !isMonoWallet()) return;
     const parameters = {};
     for (const field of adminAction.fields) {
       const input = adminForm.elements.namedItem(field.name);

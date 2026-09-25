@@ -69,6 +69,9 @@ export const page = /* html */ `<!doctype html>
       main { width: calc(100% - 2rem); margin: 0 auto; padding: 0 0 4rem; }
       [role="tabpanel"][hidden] { display: none; }
       .panel-content { overflow-wrap: anywhere; }
+      .user-tabs { margin-top: 1rem; }
+      .umbrella-action { width: 100%; min-height: 48px; margin-top: 1rem; background: #243c32; color: #fff; font-weight: 600; }
+      .umbrella-action:hover { background: #365544; }
       p { line-height: 1.7; }
       .connect-wallet { width: 100%; min-height: 48px; margin-top: 0; background: #243c32; color: #fff; font-weight: 600; }
       .connect-wallet:hover { background: #365544; }
@@ -92,6 +95,9 @@ export const page = /* html */ `<!doctype html>
   <body>
     <header>
       <span class="brand">Kirisame</span>
+      <div class="wallet-control" aria-label="Wallet">
+        ${walletControl}
+      </div>
       <nav role="tablist" aria-label="Kirisame sections">
         <button id="user-tab" role="tab" aria-selected="true" aria-controls="user-panel" data-tab="user">User</button>
         <button id="station-tab" role="tab" aria-selected="false" aria-controls="station-panel" data-tab="station" tabindex="-1">Station</button>
@@ -101,16 +107,26 @@ export const page = /* html */ `<!doctype html>
     <main>
       <section id="user-panel" role="tabpanel" aria-labelledby="user-tab">
         <div class="panel-content">
-          ${walletControl}
-          <p class="status">Under construction. Features are coming one at a time.</p>
+          <nav class="user-tabs" role="tablist" aria-label="User actions">
+            <button id="purchase-tab" role="tab" aria-selected="true" aria-controls="purchase-panel">Purchase</button>
+            <button id="supply-tab" role="tab" aria-selected="false" aria-controls="supply-panel" tabindex="-1">Supply</button>
+          </nav>
+          <section id="purchase-panel" role="tabpanel" aria-labelledby="purchase-tab">
+            <button type="button" class="umbrella-action">SCAN UMBRELLA</button>
+            <p class="status">Under construction. Features are coming one at a time.</p>
+          </section>
+          <section id="supply-panel" role="tabpanel" aria-labelledby="supply-tab" hidden>
+            <button type="button" class="umbrella-action">SUPPLY UMBRELLA</button>
+            <p class="status">Under construction. Features are coming one at a time.</p>
+          </section>
         </div>
       </section>
       <section id="station-panel" role="tabpanel" aria-labelledby="station-tab" hidden>
-        <div class="panel-content">${walletControl}
+        <div class="panel-content">
           <p class="status">Under construction. Features are coming one at a time.</p></div>
       </section>
       <section id="admin-panel" role="tabpanel" aria-labelledby="admin-tab" hidden>
-        <div class="panel-content">${walletControl}
+        <div class="panel-content">
           ${adminMarkup}</div>
       </section>
     </main>
@@ -132,7 +148,13 @@ export const page = /* html */ `<!doctype html>
       let pending = false;
       let unsubscribe = () => {};
 
+      function isMonoWallet() {
+        return account?.address?.toLowerCase() === ${JSON.stringify(Object.keys(walletAddressNames).find(address => walletAddressNames[address as keyof typeof walletAddressNames] === 'mono'))};
+      }
+      renderAdminAccess();
+
       function renderWallet(message = '') {
+        renderAdminAccess();
         for (const button of buttons) {
           button.disabled = pending;
           button.textContent = pending ? 'Connecting…' : account ? 'Disconnect Slush Wallet' : 'Connect Slush Wallet';
@@ -255,9 +277,9 @@ export const page = /* html */ `<!doctype html>
         }
       });
 
-      const tabs = [...document.querySelectorAll('[role="tab"]')];
+      const tabs = [...document.querySelectorAll('[role="tab"][data-tab]')];
       function selectTab(tab) {
-        for (const item of tabs) {
+        for (const item of tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
           const selected = item === tab;
           item.setAttribute('aria-selected', String(selected));
           item.tabIndex = selected ? 0 : -1;
@@ -266,13 +288,14 @@ export const page = /* html */ `<!doctype html>
       }
       const initialTab = tabs.find(tab => tab.dataset.tab === location.hash.slice(1));
       if (initialTab) selectTab(initialTab);
-      for (const tab of tabs) {
+      for (const tab of document.querySelectorAll('[role="tab"]')) {
         tab.addEventListener('click', () => selectTab(tab));
         tab.addEventListener('keydown', (event) => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
           event.preventDefault();
+          const siblings = [...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')];
           const direction = event.key === 'ArrowRight' ? 1 : -1;
-          const next = tabs[(tabs.indexOf(tab) + direction + tabs.length) % tabs.length];
+          const next = event.key === 'Home' ? siblings[0] : event.key === 'End' ? siblings[siblings.length - 1] : siblings[(siblings.indexOf(tab) + direction + siblings.length) % siblings.length];
           selectTab(next);
           next.focus();
         });
