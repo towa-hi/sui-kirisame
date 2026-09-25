@@ -11,8 +11,7 @@ module kirisame::umbrella {
 
     public struct StationCap has key, store {
         id: UID,
-        station_id: u64,
-        payout_address: address,
+        station: ID,
     }
 
     public enum UmbrellaState has copy, drop, store {
@@ -27,10 +26,9 @@ module kirisame::umbrella {
         id: UID,
         supplier: address,
         state: UmbrellaState,
-        current_station_id: u64,
-        checkout_station_id: u64,
-        holder: address,
-        has_holder: bool,
+        current_station_id: Option<ID>,
+        checkout_station_id: Option<ID>,
+        holder: Option<address>,
 
         checkout_time_ms: u64,
         inspection_deadline_ms: u64,
@@ -41,15 +39,13 @@ module kirisame::umbrella {
 
         active_escrow: Balance<T>,
         pending_condition: Balance<T>,
-        pending_condition_owner: address,
-        has_pending_condition_owner: bool,
+        pending_condition_owner: Option<address>,
 
         rental_count: u64,
     }
 
     public struct Station has key, store {
         id: UID,
-        station_id: u64,
         display_name: String,
         location_name: String,
         latitude_e6: u64,
