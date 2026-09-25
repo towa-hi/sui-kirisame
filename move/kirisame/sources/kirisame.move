@@ -76,11 +76,13 @@ module kirisame::umbrella {
     const EStaleOwnerCount: u64 = 5;
     const EInspectionOpen: u64 = 6;
     const ENoBuyback: u64 = 7;
+    const EInvalidPayment: u64 = 8;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const PURCHASE_PRICE: u64 = 100_000_000;
     const CONDITION_BOND: u64 = 30_000_000;
     const FEE_PER_MS: u64 = 330;
+    const INSPECTION_WINDOW_MS: u64 = 120_000;
 
     fun init(ctx: &mut TxContext) {
         transfer::transfer(
@@ -161,57 +163,94 @@ module kirisame::umbrella {
     ) {
         assert!(cap.station == object::id(station), EWrongStation);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
-        assert!(
-            umbrella.state == UmbrellaState::Created || umbrella.state == UmbrellaState::Held,
-            EInvalidState,
-        );
+        match (umbrella.state) {
+            UmbrellaState::Created => {
+                // First deposit keeps the supplier's condition bond intact.
+            },
+            UmbrellaState::Held => {
+                let now = clock.timestamp_ms();
+                assert!(now >= umbrella.inspection_deadline_ms, EInspectionOpen);
+                let elapsed = now - umbrella.inspection_deadline_ms;
+                // Compare before multiplying so even a very late return cannot overflow.
+                let usage = if (umbrella.fee_per_ms == 0) {
+                    0
+                } else if (elapsed > umbrella.purchase_price / umbrella.fee_per_ms) {
+                    umbrella.purchase_price
+                } else {
+                    elapsed * umbrella.fee_per_ms
+                };
+                let buyback = umbrella.purchase_price - usage;
+                assert!(buyback > 0, ENoBuyback);
 
-        if (umbrella.state == UmbrellaState::Held) {
-            let now = clock.timestamp_ms();
-            assert!(now >= umbrella.inspection_deadline_ms, EInspectionOpen);
-            let elapsed = now - umbrella.inspection_deadline_ms;
-            // Compare before multiplying so even a very late return cannot overflow.
-            let usage = if (umbrella.fee_per_ms == 0) {
-                0
-            } else if (elapsed > umbrella.purchase_price / umbrella.fee_per_ms) {
-                umbrella.purchase_price
-            } else {
-                elapsed * umbrella.fee_per_ms
-            };
-            let buyback = umbrella.purchase_price - usage;
-            assert!(buyback > 0, ENoBuyback);
+                pay_pending_condition(umbrella, ctx);
+                // Quotient/remainder arithmetic floors shares without overflowing.
+                let supplier_share = share(usage, 70);
+                let checkout_share = share(usage, 15);
+                pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
+                pay(
+                    &mut umbrella.active_escrow,
+                    checkout_share,
+                    *umbrella.checkout_payout_address.borrow(),
+                    ctx,
+                );
+                pay(
+                    &mut umbrella.active_escrow,
+                    usage - supplier_share - checkout_share,
+                    station.payout_address,
+                    ctx,
+                );
 
-            pay_pending_condition(umbrella, ctx);
-            // Quotient/remainder arithmetic floors shares without overflowing.
-            let supplier_share = share(usage, 70);
-            let checkout_share = share(usage, 15);
-            pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
-            pay(
-                &mut umbrella.active_escrow,
-                checkout_share,
-                *umbrella.checkout_payout_address.borrow(),
-                ctx,
-            );
-            pay(
-                &mut umbrella.active_escrow,
-                usage - supplier_share - checkout_share,
-                station.payout_address,
-                ctx,
-            );
-
-            let owner = *umbrella.holder.borrow();
-            let hold = buyback.min(umbrella.condition_bond);
-            pay(&mut umbrella.active_escrow, buyback - hold, owner, ctx);
-            umbrella.pending_condition.join(umbrella.active_escrow.split(hold));
-            umbrella.pending_condition_owner = option::some(owner);
-            umbrella.last_condition_amount = hold;
-            umbrella.last_condition_cycle = umbrella.owner_count;
-            umbrella.last_condition_status = ConditionStatus::Pending;
-            umbrella.holder = option::none();
+                let owner = *umbrella.holder.borrow();
+                let hold = buyback.min(umbrella.condition_bond);
+                pay(&mut umbrella.active_escrow, buyback - hold, owner, ctx);
+                umbrella.pending_condition.join(umbrella.active_escrow.split(hold));
+                umbrella.pending_condition_owner = option::some(owner);
+                umbrella.last_condition_amount = hold;
+                umbrella.last_condition_cycle = umbrella.owner_count;
+                umbrella.last_condition_status = ConditionStatus::Pending;
+                umbrella.holder = option::none();
+            },
+            UmbrellaState::Docked => abort EInvalidState,
+            UmbrellaState::Quarantined => abort EInvalidState,
+            UmbrellaState::Sold => abort EInvalidState,
         };
 
         umbrella.current_station_id = option::some(object::id(station));
         umbrella.state = UmbrellaState::Docked;
+    }
+
+    /// Buyer purchases a docked umbrella and begins its inspection window.
+    public fun undock_umbrella(
+        station: &Station,
+        umbrella: &mut Umbrella,
+        payment: Coin<SUI>,
+        expected_owner_count: u64,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
+        match (umbrella.state) {
+            UmbrellaState::Docked => {
+                assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
+                assert!(payment.value() == umbrella.purchase_price, EInvalidPayment);
+
+                // The prior condition hold remains pending through this inspection.
+                umbrella.active_escrow.join(payment.into_balance());
+                umbrella.holder = option::some(ctx.sender());
+                umbrella.checkout_station_id = option::some(object::id(station));
+                umbrella.checkout_payout_address = option::some(station.payout_address);
+                umbrella.checkout_time_ms = clock.timestamp_ms();
+                umbrella.inspection_deadline_ms = umbrella.checkout_time_ms + INSPECTION_WINDOW_MS;
+                umbrella.owner_count = umbrella.owner_count + 1;
+            },
+            UmbrellaState::Created => abort EInvalidState,
+            UmbrellaState::Held => abort EInvalidState,
+            UmbrellaState::Quarantined => abort EInvalidState,
+            UmbrellaState::Sold => abort EInvalidState,
+        };
+
+        umbrella.current_station_id = option::none();
+        umbrella.state = UmbrellaState::Held;
     }
 
     fun share(amount: u64, percent: u64): u64 {
