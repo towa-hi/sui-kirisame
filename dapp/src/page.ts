@@ -1,3 +1,5 @@
+import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
+
 const walletControl = /* html */ `
           <button type="button" class="connect-wallet">Connect Slush Wallet</button>
           <div class="wallet-details" hidden aria-label="Connected wallet">
@@ -78,6 +80,7 @@ export const page = /* html */ `<!doctype html>
       .wallet-status { font-size: .875rem; color: #526358; overflow-wrap: anywhere; }
       .wallet-status:empty { display: none; }
       .status { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #cad4cc; color: #526358; }
+      ${adminStyles}
     </style>
   </head>
   <body>
@@ -102,10 +105,12 @@ export const page = /* html */ `<!doctype html>
       </section>
       <section id="admin-panel" role="tabpanel" aria-labelledby="admin-tab" hidden>
         <div class="panel-content">${walletControl}
-          <p class="status">Under construction. Features are coming one at a time.</p></div>
+          ${adminMarkup}</div>
       </section>
     </main>
+    ${adminOverlay}
     <script>
+      ${adminScript}
       const buttons = [...document.querySelectorAll('.connect-wallet')];
       const statuses = [...document.querySelectorAll('.wallet-status')];
       const details = [...document.querySelectorAll('.wallet-details')];

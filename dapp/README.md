@@ -53,3 +53,21 @@ npm ci
 ```
 
 The last command restores development dependencies.
+
+## Admin transactions
+
+The Admin tab exposes all six contract admin functions. The server validates
+parameters and discovers the connected wallet's `AdminCap`, then returns an
+unsigned transaction. Slush requests approval and submits it on Sui testnet.
+The app checks the transaction result before showing a six-second completion
+toast. Rejections and failures keep the form values; uncertain confirmations
+include a transaction link so the outcome can be checked before retrying.
+
+The default package is the testnet deployment in `move/kirisame/Published.toml`.
+Set `KIRISAME_PACKAGE_ID` to change the call target. For an upgraded package,
+set `KIRISAME_ORIGINAL_PACKAGE_ID` to the original package defining `AdminCap`.
+No server signing key is needed. The wallet must own the AdminCap and have gas.
+Coordinate inputs accept the contract's encoded unsigned E6 values.
+
+Run `npm test` for transaction construction, validation, capability, and result
+handling tests. Tests use a mocked chain client and never submit transactions.

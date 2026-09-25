@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { SuiGrpcClient } from "@mysten/sui/grpc";
 import { isValidSuiAddress } from "@mysten/sui/utils";
+import { adminRoutes } from "./admin-routes.js";
 import { page } from "./page.js";
 
 const app = new Hono();
@@ -18,6 +19,8 @@ app.get("/api/balance/:address", async (c) => {
     return c.json({ error: "Unable to load SUI balance. Please try again." }, 502);
   }
 });
+
+app.route("/api/admin", adminRoutes(sui));
 
 app.get("/", (c) => c.html(page));
 app.get("/health", (c) => c.json({ ok: true }));
