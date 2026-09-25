@@ -278,7 +278,9 @@ module kirisame::umbrella {
 
     /// Periodic sweep primitive: call once per discovered shared umbrella (or
     /// compose bounded PTBs). Sui cannot enumerate shared objects inside Move.
-    /// Skips non-held and positive-buyback purchases, including repeated calls.
+    /// Releases the prior condition hold once inspection ends, without changing
+    /// the current purchase or its timer. Also finalizes zero-buyback purchases.
+    /// Skips non-held umbrellas and open inspections; repeated calls cannot pay twice.
     /// Sold records retain the final buyer and prior condition result.
     public fun admin_settle_pending_payments(
         _admin: &AdminCap,
@@ -288,9 +290,9 @@ module kirisame::umbrella {
     ) {
         if (umbrella.state != UmbrellaState::Held) return;
         if (clock.timestamp_ms() < umbrella.inspection_deadline_ms) return;
+        pay_pending_condition(umbrella, ctx);
         if (usage_fee(umbrella, clock.timestamp_ms()) < umbrella.purchase_price) return;
 
-        pay_pending_condition(umbrella, ctx);
         let amount = umbrella.active_escrow.value();
         let supplier_share = share(amount, 70);
         pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
