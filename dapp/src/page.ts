@@ -8,7 +8,9 @@ export const page = /* html */ `<!doctype html>
     <style>
       * { box-sizing: border-box; }
       body {
-        margin: 0;
+        width: 100%;
+        max-width: 430px;
+        margin: 0 auto;
         min-height: 100vh;
         min-height: 100svh;
         background: #f3f5f1;
@@ -17,20 +19,23 @@ export const page = /* html */ `<!doctype html>
       }
       header {
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: stretch;
         justify-content: space-between;
-        gap: 2rem;
-        width: min(100% - 4rem, 72rem);
+        gap: 1rem;
+        width: calc(100% - 2rem);
         margin: 0 auto;
         padding: 1.5rem 0;
         border-bottom: 1px solid #cad4cc;
       }
       .brand { font-weight: 650; letter-spacing: -.02em; }
-      nav { display: flex; gap: .25rem; padding: .25rem; border-radius: .75rem; background: #e7ebe5; }
+      nav { display: flex; width: 100%; gap: .25rem; padding: .25rem; border-radius: .75rem; background: #e7ebe5; }
       button {
         border: 0;
         border-radius: .55rem;
-        padding: .65rem 1.1rem;
+        flex: 1;
+        min-width: 0;
+        padding: .65rem .5rem;
         background: transparent;
         color: #526358;
         font: inherit;
@@ -38,19 +43,13 @@ export const page = /* html */ `<!doctype html>
       }
       button[aria-selected="true"] { background: #fff; color: #243c32; box-shadow: 0 1px 5px #243c3214; }
       button:focus-visible { outline: 2px solid #557866; outline-offset: 2px; }
-      main { width: min(100% - 4rem, 72rem); margin: 0 auto; padding: clamp(5rem, 12vw, 9rem) 0; }
+      main { width: calc(100% - 2rem); margin: 0 auto; padding: 4rem 0; }
       [role="tabpanel"][hidden] { display: none; }
-      .panel-content { max-width: 36rem; }
+      .panel-content { overflow-wrap: anywhere; }
       .eyebrow { font-size: .75rem; letter-spacing: .16em; text-transform: uppercase; }
-      h1 { margin: 1rem 0; font-size: clamp(3rem, 10vw, 5rem); font-weight: 500; letter-spacing: -.05em; }
+      h1 { margin: 1rem 0; font-size: 3rem; font-weight: 500; letter-spacing: -.05em; }
       p { line-height: 1.7; }
       .status { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #cad4cc; color: #526358; }
-      @media (max-width: 36rem) {
-        header { width: min(100% - 2rem, 72rem); flex-direction: column; align-items: stretch; gap: 1rem; }
-        nav { width: 100%; }
-        button { flex: 1; padding-inline: .5rem; }
-        main { width: min(100% - 2rem, 72rem); padding-top: 4rem; }
-      }
     </style>
   </head>
   <body>
