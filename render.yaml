@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: kirisame-dapp
+    runtime: node
+    plan: free
+    branch: master
+    rootDir: dapp
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production

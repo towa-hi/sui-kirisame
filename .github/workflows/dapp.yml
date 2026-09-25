@@ -1,0 +1,37 @@
+name: Dapp CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dapp-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and smoke check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dapp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: dapp/.node-version
+          cache: npm
+          cache-dependency-path: dapp/package-lock.json
+      - run: npm ci --include=dev
+      - run: npm run build
+      - name: Verify production runtime
+        run: |
+          npm prune --omit=dev
+          npm run smoke
