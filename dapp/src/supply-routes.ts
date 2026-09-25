@@ -1,9 +1,9 @@
+import { packageId } from './deployment.js';
 import { Hono } from 'hono';
 import { Transaction } from '@mysten/sui/transactions';
 import { isValidSuiAddress } from '@mysten/sui/utils';
 
 // Current deployment: move/kirisame/Published.toml.
-const packageId = process.env.KIRISAME_PACKAGE_ID || '0x2c4144fcc222026470b4da7483898c812c0e90a516cbbe25f3478dfb82a0ee4a';
 export const conditionBond = 30_000_000;
 
 export function supplyRoutes() {

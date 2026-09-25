@@ -2,6 +2,12 @@ export const supplyMarkup = /* html */ `
   <button type="button" id="supply-open" class="umbrella-action" aria-haspopup="dialog" aria-controls="supply-dialog" disabled>Create umbrella</button>
   <p id="supply-access" role="status">Connect Slush Wallet to create an umbrella on testnet.</p>
   <p id="supply-result" role="status"></p>
+  <section id="supply-label" aria-label="Created umbrella QR code" hidden>
+    <img id="supply-qr" width="320" height="320" alt="Scan to open this umbrella’s details" style="display:block;max-width:100%;height:auto;margin:auto">
+    <p id="supply-qr-error" role="status" hidden>QR code could not load. You can still use the umbrella link below.</p>
+    <p><a id="supply-umbrella-link">Open umbrella</a></p>
+    <a id="supply-qr-download" download>Download QR code</a>
+  </section>
 `;
 
 export const supplyOverlay = /* html */ `
@@ -39,6 +45,11 @@ export const supplyScript = /* js */ `
   const supplyStatus = document.getElementById('supply-status');
   const supplyError = document.getElementById('supply-error');
   const supplyResult = document.getElementById('supply-result');
+  const supplyLabel = document.getElementById('supply-label');
+  const supplyQr = document.getElementById('supply-qr');
+  const supplyQrError = document.getElementById('supply-qr-error');
+  supplyQr.addEventListener('error', () => { supplyQr.hidden = true; supplyQrError.hidden = false; });
+  supplyQr.addEventListener('load', () => { supplyQr.hidden = false; supplyQrError.hidden = true; });
   let supplyPending = false;
   function renderSupplyAccess() {
     supplyOpen.disabled = supplyPending || !account;
@@ -74,6 +85,7 @@ export const supplyScript = /* js */ `
     const color = Number(supplyColor.value);
     supplyError.textContent = '';
     supplyResult.textContent = '';
+    supplyLabel.hidden = true;
     supplyPending = true;
     renderSupplyAccess();
     supplyStatus.textContent = 'Preparing transaction…';
@@ -103,10 +115,30 @@ export const supplyScript = /* js */ `
       if (!confirmation.ok || !outcome.success) throw new Error(outcome.error || 'Unable to confirm. Check the transaction before retrying.');
       supplyResult.textContent = 'Umbrella created. Bring it to a station for docking.';
       supplyResult.append(supplyTransactionLink(digest));
+      supplyLabel.hidden = true;
+      const umbrellaId = outcome.umbrellaIds?.[0];
+      if (typeof umbrellaId === 'string' && /^0x[0-9a-fA-F]{64}$/.test(umbrellaId)) {
+        const link = new URL('/', location.origin);
+        link.searchParams.set('umbrella', umbrellaId.toLowerCase());
+        const anchor = document.getElementById('supply-umbrella-link');
+        anchor.href = link.href;
+        anchor.textContent = link.href;
+        const qrUrl = '/api/umbrellas/' + encodeURIComponent(umbrellaId) + '/qr?origin=' + encodeURIComponent(location.origin);
+        supplyQr.hidden = false;
+        supplyQrError.hidden = true;
+        supplyQr.src = qrUrl;
+        const download = document.getElementById('supply-qr-download');
+        download.href = qrUrl;
+        download.download = 'umbrella-' + umbrellaId + '.svg';
+        supplyLabel.hidden = false;
+      } else {
+        supplyResult.append(' The umbrella ID was unavailable, so its QR code could not be generated. Check the transaction for the created object.');
+      }
       supplyForm.reset();
       supplyDialog.close();
       showToast('Umbrella created.');
       void refreshBalance();
+      refreshInventory();
     } catch (error) {
       supplyError.textContent = error.name === 'TimeoutError' ? 'Confirmation timed out. Check wallet activity before retrying.' : error.message || 'Unable to create umbrella. Please try again.';
       if (digest) supplyError.append(supplyTransactionLink(digest));

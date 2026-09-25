@@ -1,3 +1,5 @@
+import { inventoryRoutes } from './inventory-routes.js';
+import { purchaseRoutes } from './purchase-routes.js';
 import { readFile } from 'node:fs/promises';
 import { umbrellaRoutes } from './umbrella-routes.js';
 import { serve } from "@hono/node-server";
@@ -24,9 +26,11 @@ app.get("/api/balance/:address", async (c) => {
   }
 });
 
+app.route("/api/inventory", inventoryRoutes());
 app.route("/api/admin", adminRoutes(sui));
 app.route("/api/station", adminRoutes(sui, "station"));
 app.route("/api/supply", supplyRoutes());
+app.route('/api/purchase', purchaseRoutes(sui));
 
 app.route('/api/umbrellas', umbrellaRoutes(sui));
 app.get('/assets/barcode-reader.js', async c => {

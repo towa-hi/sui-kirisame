@@ -1,11 +1,10 @@
+import { packageId, originalId } from './deployment.js';
 import { Hono } from 'hono';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Transaction, type TransactionArgument } from '@mysten/sui/transactions';
 import { isValidSuiAddress, normalizeSuiAddress, isValidTransactionDigest } from '@mysten/sui/utils';
 import { adminActions } from './admin.js';
 import { stationActions } from './station.js';
-const packageId = process.env.KIRISAME_PACKAGE_ID || '0x19dcc66da70db7639e20d056e45a739eb6e1756c29d0838cf69e9a56133a8001';
-const originalId = process.env.KIRISAME_ORIGINAL_PACKAGE_ID || packageId;
 export function adminRoutes(sui: SuiGrpcClient, role: 'admin' | 'station' = 'admin') {
   const actions = role === 'station' ? stationActions : adminActions;
   const routes = new Hono();
@@ -49,9 +48,12 @@ export function adminRoutes(sui: SuiGrpcClient, role: 'admin' | 'station' = 'adm
     const digest = c.req.param('digest');
     if (!isValidTransactionDigest(digest)) return c.json({ error: 'Invalid transaction digest.' }, 400);
     try {
-      const result = await sui.waitForTransaction({ digest, timeout: 20000, signal: AbortSignal.timeout(22000) });
+      const result = await sui.waitForTransaction({ digest, include: { effects: true, objectTypes: true }, timeout: 20000, signal: AbortSignal.timeout(22000) });
       if (result.$kind === 'FailedTransaction' || !result.Transaction.status.success) return c.json({ error: 'The transaction failed on chain. Check its details before retrying.', digest }, 422);
-      return c.json({ digest, success: true });
+      const umbrellaIds = (result.Transaction.effects?.changedObjects ?? [])
+        .filter(object => object.idOperation === 'Created' && result.Transaction.objectTypes?.[object.objectId] === `${normalizeSuiAddress(originalId)}::umbrella::Umbrella`)
+        .map(object => object.objectId);
+      return c.json({ digest, success: true, umbrellaIds });
     } catch { return c.json({ error: 'Confirmation is still unavailable. Check the transaction before retrying.', digest }, 504); }
   });
   return routes;

@@ -1,3 +1,4 @@
+import { inventoryMarkup, inventoryStyles, inventoryScript } from './inventory.js';
 import { stationActions } from './station.js';
 import { stationLocationScript, stationLocationStyles } from './station-location.js';
 
@@ -22,7 +23,8 @@ export const adminActions = [
 ];
 
 export const adminMarkup = /* html */ `
-  <div class="admin-heading"><h1>Admin functions</h1><p id="admin-mode">Testnet · Connect mono to use admin functions.</p></div>
+  ${inventoryMarkup}
+  <div class="admin-heading"><h2>Admin functions</h2><p id="admin-mode">Testnet · Connect mono to use admin functions.</p></div>
   <div class="admin-actions">${adminActions.map(action => `<button type="button" class="admin-action" disabled data-action="${action.id}"><strong>${action.title}</strong><span>${action.description}</span><span class="action-arrow" aria-hidden="true">↗</span></button>`).join('')}</div>
 `;
 
@@ -42,8 +44,9 @@ export const adminOverlay = /* html */ `
 
 export const adminStyles = /* css */ `
   ${stationLocationStyles}
+  ${inventoryStyles}
   .admin-heading { margin: 1.75rem 0 1rem; }
-  .admin-heading h1 { font-size: 1.2rem; margin: 0; }
+  .admin-heading h1, .admin-heading h2 { font-size: 1.2rem; margin: 0; }
   .admin-heading p { font-size: .8rem; color: #526358; margin: .4rem 0; }
   .admin-actions { display: grid; gap: .65rem; }
   .admin-action { position: relative; text-align: left; padding: 1rem 2.5rem 1rem 1rem; background: #fff; border: 1px solid #cad4cc; color: #243c32; }
@@ -78,6 +81,7 @@ export const adminStyles = /* css */ `
 `;
 
 export const adminScript = /* js */ `
+  ${inventoryScript}
   const adminActions = ${JSON.stringify([...adminActions, ...stationActions])};
   const adminDialog = document.getElementById('admin-dialog');
   const adminForm = document.getElementById('admin-form');
@@ -216,6 +220,7 @@ export const adminScript = /* js */ `
       adminDialog.close();
       showToast(adminAction.title + ' completed.');
       void refreshBalance();
+      refreshInventory();
     } catch (error) {
       const message = error.name === 'TimeoutError' ? 'The server did not respond in time. Check the result before retrying.' : error.message || 'Unable to reach the server. Please try again.';
       adminError.textContent = message;

@@ -1,10 +1,11 @@
+import { originalId } from './deployment.js';
 import { Hono } from 'hono';
 import { bcs } from '@mysten/sui/bcs';
 import { ObjectError } from '@mysten/sui/client';
 import type { SuiGrpcClient } from '@mysten/sui/grpc';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
+import QRCode from 'qrcode';
 
-const originalId = process.env.KIRISAME_ORIGINAL_PACKAGE_ID || process.env.KIRISAME_PACKAGE_ID || '0x2c4144fcc222026470b4da7483898c812c0e90a516cbbe25f3478dfb82a0ee4a';
 // Field order mirrors move/kirisame/sources/kirisame.move.
 export const umbrellaBcs = bcs.struct('Umbrella', {
   id: bcs.Address, supplier: bcs.Address, color: bcs.u8(),
@@ -19,6 +20,22 @@ export const umbrellaBcs = bcs.struct('Umbrella', {
 
 export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
   const routes = new Hono();
+  routes.get('/:id/qr', async c => {
+    const id = c.req.param('id');
+    if (!/^0x[0-9a-fA-F]{64}$/.test(id)) return c.json({ error: 'Invalid umbrella ID.' }, 400);
+    // The browser supplies its public origin so reverse proxies cannot produce HTTP labels.
+    const origin = c.req.query('origin') ?? new URL(c.req.url).origin;
+    try {
+      const base = new URL(origin);
+      if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin || origin.length > 256) throw new Error('Invalid origin');
+      const link = new URL('/', base);
+      link.searchParams.set('umbrella', id.toLowerCase());
+      const svg = await QRCode.toString(link.href, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+      c.header('Content-Type', 'image/svg+xml');
+      c.header('Content-Disposition', `inline; filename="umbrella-${id.toLowerCase()}.svg"`);
+      return c.body(svg);
+    } catch { return c.json({ error: 'Unable to generate the umbrella QR code.' }, 400); }
+  });
   routes.get('/:id', async c => {
     c.header('Cache-Control', 'no-store');
     const id = c.req.param('id');

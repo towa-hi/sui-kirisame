@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { adminRoutes } from '../dist/admin-routes.js';
 import { adminActions } from '../dist/admin.js';
 import { page } from '../dist/page.js';
+import { originalId } from '../dist/deployment.js';
 const sender = '0x' + '1'.repeat(64);
 const cap = '0x' + '2'.repeat(64);
 const params = action => Object.fromEntries(action.fields.map(field => [field.name, field.kind === 'boolean' ? false : field.kind === 'object' ? '0x3' : field.kind === 'integer' ? '1' : 'Station']));
@@ -47,4 +48,19 @@ test('on-chain failure and unavailable confirmation never report success', async
 });
 test('rendered browser script parses', () => {
   new Function(page.match(/<script>([\s\S]*?)<\/script>/)[1]);
+});
+test('confirmation returns only newly created umbrellas from this deployment', async () => {
+  const routes = adminRoutes({ waitForTransaction: async options => {
+    assert.deepEqual(options.include, { effects: true, objectTypes: true });
+    return { $kind: 'Transaction', Transaction: { status: { success: true },
+      effects: { changedObjects: [
+        { objectId: sender, idOperation: 'Created' },
+        { objectId: cap, idOperation: 'None' },
+        { objectId: '0x3', idOperation: 'Created' },
+      ] },
+      objectTypes: { [sender]: `${originalId}::umbrella::Umbrella`, [cap]: `${originalId}::umbrella::Umbrella`, '0x3': '0x2::coin::Coin' },
+    } };
+  } });
+  const response = await routes.request('/transactions/11111111111111111111111111111111');
+  assert.deepEqual((await response.json()).umbrellaIds, [sender]);
 });

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { supplyRoutes, conditionBond } from '../dist/supply-routes.js';
+import { supplyScript } from '../dist/supply.js';
+import vm from 'node:vm';
 
 const sender = '0x' + '1'.repeat(64);
 const request = body => supplyRoutes().request('/create', {
@@ -35,4 +37,35 @@ test('rejects missing, coerced, fractional, and unsupported colors and invalid s
     assert.equal((await request(body)).status, 400);
   }
   assert.equal((await supplyRoutes().request('/create', { method: 'POST', body: '{' })).status, 400);
+});
+test('confirmed creation shows a QR and direct link; failed creation never shows a label', async () => {
+  for (const success of [true, false]) {
+    const elements = new Map();
+    const element = id => {
+      if (!elements.has(id)) elements.set(id, {
+        value: '1', hidden: true, textContent: '', handlers: {},
+        addEventListener(event, fn) { this.handlers[event] = fn; },
+        setAttribute() {}, reportValidity() { return true; }, reset() {}, close() {}, append() {},
+      });
+      return elements.get(id);
+    };
+    const context = {
+      document: { getElementById: element, createElement: () => ({}) },
+      account: { address: sender, chains: ['sui:testnet'] },
+      activeWallet: { features: { 'sui:signAndExecuteTransaction': { signAndExecuteTransaction: async () => ({ digest: 'digest' }) } } },
+      location: { origin: 'https://kirisame.example' }, URL, AbortSignal,
+      fetch: async url => ({ ok: true, json: async () => url.includes('/create') ? { transaction: '{}' } : { success, umbrellaIds: [sender] } }),
+      showToast() {}, refreshBalance() {}, refreshInventory() {},
+    };
+    vm.runInNewContext(supplyScript, context);
+    await element('supply-form').handlers.submit({ preventDefault() {} });
+    assert.equal(element('supply-label').hidden, !success);
+    if (success) {
+      assert.equal(element('supply-umbrella-link').href, 'https://kirisame.example/?umbrella=' + sender);
+      assert.equal(element('supply-qr').src, '/api/umbrellas/' + sender + '/qr?origin=https%3A%2F%2Fkirisame.example');
+      assert.equal(element('supply-qr-download').href, element('supply-qr').src);
+      element('supply-qr').handlers.error();
+      assert.equal(element('supply-qr-error').hidden, false);
+    } else assert.match(element('supply-error').textContent, /Unable to confirm/);
+  }
 });

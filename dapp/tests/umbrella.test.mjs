@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ObjectError } from '@mysten/sui/client';
 import { umbrellaRoutes, umbrellaBcs } from '../dist/umbrella-routes.js';
 import { page } from '../dist/page.js';
+import QRCode from 'qrcode';
 
 const id = '0x' + '1'.repeat(64);
 const pkg = process.env.KIRISAME_ORIGINAL_PACKAGE_ID || process.env.KIRISAME_PACKAGE_ID || '0x2c4144fcc222026470b4da7483898c812c0e90a516cbbe25f3478dfb82a0ee4a';
@@ -48,4 +49,17 @@ test('rejects unrelated objects, missing objects and chain failures distinctly',
 });
 test('all rendered inline scripts parse', () => {
   for (const match of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(match[1]);
+});
+test('QR encodes the public umbrella link with a quiet zone and download filename', async () => {
+  const routes = umbrellaRoutes({ getObject: () => { throw Error('QR generation needs no chain query'); } });
+  const response = await routes.request('/' + id + '/qr?origin=https%3A%2F%2Fkirisame.example');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /image\/svg\+xml/);
+  assert.match(response.headers.get('content-disposition'), /umbrella-0x1+\.svg/);
+  const expected = await QRCode.toString('https://kirisame.example/?umbrella=' + id, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+  assert.equal(await response.text(), expected);
+  for (const origin of ['javascript:alert(1)', 'https://evil.example/path', 'https://user:pass@example.com']) {
+    assert.equal((await routes.request('/' + id + '/qr?origin=' + encodeURIComponent(origin))).status, 400);
+  }
+  assert.equal((await routes.request('/bad/qr')).status, 400);
 });

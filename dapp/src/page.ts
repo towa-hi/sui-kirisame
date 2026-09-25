@@ -97,6 +97,7 @@ export const page = /* html */ `<!doctype html>
       ${scanStyles}
       #supply-error { color: #9a332e; }
       #supply-error:empty, #supply-result:empty { display: none; }
+      #supply-label [hidden] { display: none !important; }
     </style>
   </head>
   <body>
@@ -165,6 +166,7 @@ export const page = /* html */ `<!doctype html>
       function renderWallet(message = '') {
         renderSupplyAccess();
         renderAdminAccess();
+        window.dispatchEvent(new Event('kirisame-wallet-change'));
         for (const button of buttons) {
           button.disabled = pending;
           button.textContent = pending ? 'Connecting…' : account ? 'Disconnect Slush Wallet' : 'Connect Slush Wallet';
@@ -266,6 +268,7 @@ export const page = /* html */ `<!doctype html>
           );
           if (!wallet) {
             const url = new URL(location.href);
+            if (button.id === 'purchase-connect' && button.value) url.searchParams.set('umbrella', button.value);
             url.hash = document.querySelector('[role="tab"][aria-selected="true"]').dataset.tab;
             location.assign('https://my.slush.app/browse/' + encodeURIComponent(url.href));
             return;
@@ -289,6 +292,7 @@ export const page = /* html */ `<!doctype html>
 
       const tabs = [...document.querySelectorAll('[role="tab"][data-tab]')];
       function selectTab(tab) {
+        if (tab.dataset.tab === 'admin') ensureInventory();
         for (const item of tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
           const selected = item === tab;
           item.setAttribute('aria-selected', String(selected));

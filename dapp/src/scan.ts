@@ -6,6 +6,12 @@ export const scanMarkup = /* html */ `
     <p id="scan-error" role="alert"></p>
     <dl id="scan-details" hidden></dl>
     <a id="scan-explorer" target="_blank" rel="noreferrer" hidden>View object on Sui Explorer ↗</a>
+    <p id="purchase-note" hidden></p>
+    <button id="purchase-connect" class="connect-wallet" type="button" hidden>Connect Slush Wallet</button>
+    <p class="wallet-status" role="status" aria-live="polite"></p>
+    <button id="purchase-confirm" class="umbrella-action" type="button" hidden>Purchase umbrella</button>
+    <p id="purchase-status" role="status" aria-live="polite"></p>
+    <a id="purchase-transaction" target="_blank" rel="noopener noreferrer" hidden>View purchase transaction ↗</a>
     <button id="scan-again" class="umbrella-action" type="button" hidden>Scan again</button>
     <details id="scan-manual"><summary>Enter umbrella ID instead</summary>
       <form id="scan-form"><label class="admin-field" for="scan-id">Umbrella object ID<input id="scan-id" placeholder="0x…" autocomplete="off" spellcheck="false" required maxlength="66"></label>
@@ -44,6 +50,84 @@ export const scanScript = /* js */ `
     const explorer = document.getElementById('scan-explorer');
     const again = document.getElementById('scan-again');
     const lookup = document.getElementById('scan-lookup');
+    const purchase = document.getElementById('purchase-confirm');
+    const purchaseNote = document.getElementById('purchase-note');
+    const purchaseStatus = document.getElementById('purchase-status');
+    const purchaseTransaction = document.getElementById('purchase-transaction');
+    const pendingPurchases = new Map();
+    let umbrella = null, purchasePending = false;
+    function renderPurchase() {
+      const available = umbrella?.state === 'Docked' && !!umbrella.station;
+      const digest = pendingPurchases.get(umbrella?.objectId);
+      purchase.hidden = !available && !digest;
+      purchase.disabled = purchasePending || (!digest && !account);
+      purchase.textContent = purchasePending ? 'Processing purchase…' : digest ? 'Check purchase status' : 'Purchase for ' + (umbrella ? formatSui(umbrella.purchasePrice) : '');
+      purchaseNote.hidden = !umbrella;
+      purchaseNote.textContent = available ? 'Pay ' + formatSui(umbrella.purchasePrice) + ' plus network gas fees. Your inspection window starts when the purchase confirms.' : 'This umbrella is not available for purchase.';
+      document.getElementById('purchase-connect').hidden = !available || !!account;
+      document.getElementById('purchase-connect').value = umbrella?.objectId || '';
+      document.getElementById('scan-close').disabled = purchasePending;
+      again.disabled = purchasePending;
+      lookup.disabled = purchasePending;
+      if (digest) {
+        purchaseTransaction.href = 'https://suiscan.xyz/testnet/tx/' + encodeURIComponent(digest);
+        purchaseTransaction.hidden = false;
+      }
+    }
+    window.addEventListener('kirisame-wallet-change', renderPurchase);
+    purchase.addEventListener('click', async () => {
+      if (purchasePending || !umbrella) return;
+      const selected = umbrella;
+      let digest = pendingPurchases.get(selected.objectId);
+      if (!digest && (!account || selected.state !== 'Docked' || !selected.station)) return;
+      purchasePending = true;
+      renderPurchase();
+      error.textContent = '';
+      try {
+        if (!digest) {
+          const signingAccount = account, signingWallet = activeWallet;
+          const feature = signingWallet?.features['sui:signAndExecuteTransaction'];
+          if (!feature) throw new Error('This wallet does not support transaction signing. Update Slush and try again.');
+          if (!signingAccount.chains.includes('sui:testnet')) throw new Error('Switch your wallet to Sui testnet.');
+          purchaseStatus.textContent = 'Preparing purchase…';
+          const response = await fetch('/api/purchase', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sender: signingAccount.address, umbrellaId: selected.objectId, stationId: selected.station, purchasePrice: selected.purchasePrice, ownerCount: selected.ownerCount }),
+            signal: AbortSignal.timeout(30000),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Unable to prepare purchase.');
+          if (account !== signingAccount || activeWallet !== signingWallet) throw new Error('The wallet changed. Please confirm again.');
+          purchaseStatus.textContent = 'Approve the purchase in Slush…';
+          const signed = await feature.signAndExecuteTransaction({ transaction: { toJSON: async () => result.transaction }, account: signingAccount, chain: 'sui:testnet' });
+          digest = signed.digest;
+          if (!digest) throw new Error('No transaction ID returned. Check wallet activity and look up the umbrella again before retrying.');
+          pendingPurchases.set(selected.objectId, digest);
+          renderPurchase();
+        }
+        purchaseStatus.textContent = 'Awaiting chain confirmation…';
+        const response = await fetch('/api/admin/transactions/' + encodeURIComponent(digest), { signal: AbortSignal.timeout(25000) });
+        const outcome = await response.json();
+        if (!response.ok || !outcome.success) {
+          if (response.status === 422) pendingPurchases.delete(selected.objectId);
+          throw new Error(outcome.error || 'Confirmation is unavailable. Check purchase status before retrying.');
+        }
+        pendingPurchases.delete(selected.objectId);
+        purchasePending = false;
+        await showUmbrella(selected.objectId);
+        purchaseStatus.textContent = 'Purchase confirmed. The umbrella is now yours to take.';
+        purchaseTransaction.href = 'https://suiscan.xyz/testnet/tx/' + encodeURIComponent(digest);
+        purchaseTransaction.hidden = false;
+        void refreshBalance();
+        refreshInventory();
+      } catch (failure) {
+        purchaseStatus.textContent = '';
+        error.textContent = failure.name === 'TimeoutError' ? 'Request timed out. Check wallet activity or purchase status before retrying.' : failure.message || 'Unable to purchase umbrella.';
+      } finally {
+        purchasePending = false;
+        renderPurchase();
+      }
+    });
     let generation = 0, stream = null, controls = null, request = null;
     let decoderReady;
 
@@ -80,12 +164,18 @@ export const scanScript = /* js */ `
       } catch { return null; }
     }
     async function showUmbrella(raw) {
+      if (purchasePending) return;
+      umbrella = null;
+      purchase.hidden = true; purchaseNote.hidden = true;
+      document.getElementById('purchase-connect').hidden = true;
+      purchaseStatus.textContent = ''; purchaseTransaction.hidden = true;
       const id = objectId(raw);
       cancel();
       const current = generation;
       video.hidden = true; again.hidden = false; details.hidden = true; explorer.hidden = true;
       error.textContent = ''; status.textContent = ''; lookup.disabled = false;
       if (!id) { error.textContent = 'This code does not contain a valid umbrella object ID. Scan the umbrella label or enter its ID.'; return; }
+      document.getElementById('scan-id').value = id;
       document.getElementById('scan-title').textContent = 'Umbrella details';
       status.textContent = 'Looking up umbrella on Sui testnet…';
       lookup.disabled = true;
@@ -110,6 +200,8 @@ export const scanScript = /* js */ `
         details.hidden = false;
         explorer.href = 'https://suiscan.xyz/testnet/object/' + encodeURIComponent(data.objectId); explorer.hidden = false;
         status.textContent = 'Umbrella found · Sui testnet';
+        umbrella = data;
+        renderPurchase();
       } catch (failure) {
         if (current !== generation || !dialog.open) return;
         status.textContent = '';
@@ -120,6 +212,9 @@ export const scanScript = /* js */ `
       }
     }
     async function start() {
+      if (purchasePending) return;
+      umbrella = null; renderPurchase();
+      purchaseStatus.textContent = ''; purchaseTransaction.hidden = true;
       cancel();
       const current = generation;
       document.getElementById('scan-title').textContent = 'Scan umbrella';
@@ -149,12 +244,17 @@ export const scanScript = /* js */ `
       }
     }
     document.getElementById('scan-umbrella').addEventListener('click', () => { dialog.showModal(); void start(); });
-    document.getElementById('scan-close').addEventListener('click', () => dialog.close());
+    document.getElementById('scan-close').addEventListener('click', () => { if (!purchasePending) dialog.close(); });
     dialog.addEventListener('close', cancel);
-    dialog.addEventListener('cancel', cancel);
+    dialog.addEventListener('cancel', event => { if (purchasePending) event.preventDefault(); else cancel(); });
     again.addEventListener('click', () => void start());
     document.getElementById('scan-form').addEventListener('submit', event => { event.preventDefault(); void showUmbrella(document.getElementById('scan-id').value); });
     window.addEventListener('pagehide', cancel);
-    document.addEventListener('visibilitychange', () => { if (document.hidden && dialog.open) { cancel(); video.hidden = true; again.hidden = false; lookup.disabled = false; status.textContent = 'Scan paused. Tap Scan again to resume.'; } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && dialog.open && !purchasePending && stream) { cancel(); video.hidden = true; again.hidden = false; lookup.disabled = false; status.textContent = 'Scan paused. Tap Scan again to resume.'; } });
+    const linkedUmbrella = new URLSearchParams(location.search).get('umbrella');
+    if (linkedUmbrella !== null) {
+      dialog.showModal();
+      void showUmbrella(linkedUmbrella);
+    }
   })();
 `;

@@ -95,3 +95,18 @@ Labels can contain a full `0x` + 64 hexadecimal-character object ID, a `https://
 `GET /api/umbrellas/:id` checks the object's full package/module/type before decoding its BCS contents. The modal displays color, state, purchase price, condition bond, hourly usage fee, current station/holder, supplier, checkout count, condition-fund status, and an explorer link. The lookup uses the current published package by default, or `KIRISAME_ORIGINAL_PACKAGE_ID` / `KIRISAME_PACKAGE_ID` overrides. Keep the BCS layout in `src/umbrella-routes.ts` synchronized with contract upgrades.
 
 Tests cover object validation, lookup failures, precise amounts, duplicate scans, camera denial, and cleanup when closing during camera permission or lookup. Physical label scanning in the target phone/Slush browser still needs device testing.
+
+## Admin inventory
+
+The Admin tab contains separate keyboard-accessible, scrollable station and umbrella
+card lists. Each list loads 50 objects at a time, with Refresh and Load more controls.
+Cards include object links, lifecycle status, station inventory/location, and umbrella
+custody, checkout count, and escrow/condition balances. No wallet is needed to read
+inventory. Confirmed admin, station, and supply transactions trigger a refresh.
+
+`GET /api/inventory/stations` and `GET /api/inventory/umbrellas` accept an optional
+`cursor` query parameter and return `{ items, nextCursor }`. They query the configured
+original package through Sui's testnet GraphQL indexer; newly created or updated objects
+may take time to appear. `KIRISAME_GRAPHQL_URL` overrides the default testnet endpoint.
+The shared deployment settings in `src/deployment.ts` apply to inventory, scans, and
+transaction construction. Keep the Station and Umbrella BCS layouts in sync with Move.
