@@ -65,7 +65,7 @@ For this demo, newly registered stations issue their capability to the registeri
 | Display or button | Behavior |
 | --- | --- |
 | Current station name, ID and location | Show the selected station's display name, human-readable location and map coordinates, or “No station selected.” |
-| Normal-bin inventory | Live list of `DOCKED` umbrellas at this station; distinguish newly supplied and returned items using `rental_count` (zero for new supply, positive for returned items). |
+| Normal-bin inventory | Live list of `DOCKED` umbrellas at this station; distinguish newly supplied and returned items using `owner_count` (zero for new supply, positive for returned items). |
 | Quarantine-bin inventory | Live list of `QUARANTINED` umbrellas physically recorded at this station. |
 | **SCAN RETURNED OR SUPPLIED UMBRELLA** | Disabled without a current station. Opens a QR scanner modal; new supply activates, an eligible purchased umbrella returns. |
 | **SCAN QUARANTINED UMBRELLA** | Disabled without a current station. Opens a QR scanner modal for a customer's fault return during inspection. |
@@ -196,7 +196,7 @@ Alice can use the same **CLAIM REFUND** action for her initial collateral once t
 | Refund paid | Retained amount and PAID status in latest refund results; removed from pending total. |
 | Return quarantined | Pending amount forfeited after Carl's fault return; no claim action; retain the latest result. |
 
-The claim action must re-read the current umbrella and verify the expected rental/inspection cycle before building a transaction. Station settlement and client claim submissions can race: if another transaction settled first, refetch and show the confirmed outcome rather than sending another payment or treating it as lost funds. A later normal return or zero-buyback sale settlement also releases Bob's hold if the hold has not already been paid.
+The claim action must re-read the current umbrella and verify the expected ownership/inspection cycle before building a transaction. Station settlement and client claim submissions can race: if another transaction settled first, refetch and show the confirmed outcome rather than sending another payment or treating it as lost funds. A later normal return or zero-buyback sale settlement also releases Bob's hold if the hold has not already been paid.
 
 ## 5. Money rules, with an example
 
@@ -255,7 +255,7 @@ After verifying admin access, the station tab queries the registry and reads **a
 3. Skip positive-buyback purchases, even when inspection has expired, and skip other states. Never release a DOCKED umbrella's hold without a successor purchase. The button does not start timers or set HELD.
 
 
-Show a preview with affected umbrella IDs, actions and recipients. John confirms and signs. Use bounded transactions or small batches rather than one unbounded transaction over the whole registry. Re-read before each submission, validate the expected rental cycle onchain, and show per-item success, already-settled, failure or retry status. A failed batch rolls back its operations; refetch and retry only still-eligible items. Disable duplicate submissions. Payment recipients come from the contract, not the current station selection.
+Show a preview with affected umbrella IDs, actions and recipients. John confirms and signs. Use bounded transactions or small batches rather than one unbounded transaction over the whole registry. Re-read before each submission, validate the expected ownership cycle onchain, and show per-item success, already-settled, failure or retry status. A failed batch rolls back its operations; refetch and retry only still-eligible items. Disable duplicate submissions. Payment recipients come from the contract, not the current station selection.
 
 This button simulates automation; it does not run in the background. If nobody presses it, the price still decays correctly, but payouts wait for a settlement/claim/return transaction. Both tabs read chain data directly. Deploy the dapp over HTTPS for camera access; no application server or server key is needed.
 
@@ -288,14 +288,14 @@ Keep the original supplier plus the last and current owners. “Owner” here me
 | `state` | CREATED, DOCKED, HELD, QUARANTINED or SOLD. Inspection is a time window within HELD, not a separate custody state. SOLD is permanently invalid and read-only. |
 | `current_station_id: Option<ID>` | Physical station while deposited, including quarantine; clear at checkout and keep none during HELD or SOLD. |
 | `checkout_station_id`, `checkout_payout_address` | Optional until first checkout; then station of the active/most recent purchase and its recorded payout recipient. |
-| `rental_count` | Increment on each successful checkout; validate expected cycle in claims, station returns and settlement. |
+| `owner_count` | Increment on each successful checkout; validate expected cycle in claims, station returns and settlement. |
 | `checkout_time_ms`, `inspection_deadline_ms` | Initialize to zero before first checkout; then authoritative purchase time and purchase time plus 120,000 ms. Time-based actions require an active purchase state. |
 | `purchase_price`, `fee_per_ms`, `condition_bond` | SUI accounting parameters in integer MIST. |
 | `active_escrow: Balance<SUI>` | Current buyer's purchase payment awaiting return or sale settlement. |
 | `pending_condition: Balance<SUI>` | Condition funds payable to `last_owner` if the successor inspection succeeds. |
 | `last_condition_amount` | Original amount of the latest condition record; retain after payment or forfeiture so the UI can display it. |
 | `last_condition_status` | PENDING, PAID or FORFEITED. Supply and accepted normal returns create positive condition records. |
-| `last_condition_cycle` | Rental that created this record; zero identifies the supplier's original collateral. |
+| `last_condition_cycle` | Purchase that created this record; zero identifies the supplier's original collateral. |
 
 `last_owner` is the owner of the latest condition record. `current_owner` is the buyer currently holding the umbrella, if any. Two addresses identify the participants, but the amount and outcome must also survive balance clearing; a zero balance alone cannot distinguish payment from forfeiture.
 
@@ -305,11 +305,11 @@ Keep the original supplier plus the last and current owners. “Owner” here me
 | --- | --- |
 | Supply | `supplier = last_owner = Alice`; no current owner. Store supplier collateral as PENDING, cycle 0. |
 | Activate | Keep owner and condition fields unchanged; record station. |
-| Bob checks out | Set `current_owner = Bob` and state HELD immediately; record purchase time and inspection deadline; increment rental count. Keep Alice as last owner and keep her collateral record. |
+| Bob checks out | Set `current_owner = Bob` and state HELD immediately; record purchase time and inspection deadline; increment owner count. Keep Alice as last owner and keep her collateral record. |
 | Inspection deadline passes | No onchain mutation. State remains HELD; prior condition hold becomes claimable and usage begins accruing from the deadline. |
 | Prior owner claims | Pay pending balance to `last_owner`; set PAID and clear the balance. Retain last owner, amount and cycle. Current owner and HELD state are unchanged. |
-| Bob returns normally | First pay the prior hold if still pending, after validating inspection ended and positive buyback. Then set `last_owner = Bob`, clear current owner, and replace the condition record with Bob's retained amount and rental cycle. Mark PENDING; the positive-buyback return rule and positive condition bond guarantee a positive hold. |
-| Carl checks out | Set current owner to Carl and state HELD; record his purchase time and deadline; increment rental count. Keep Bob as last owner with his pending record. |
+| Bob returns normally | First pay the prior hold if still pending, after validating inspection ended and positive buyback. Then set `last_owner = Bob`, clear current owner, and replace the condition record with Bob's retained amount and ownership cycle. Mark PENDING; the positive-buyback return rule and positive condition bond guarantee a positive hold. |
+| Carl checks out | Set current owner to Carl and state HELD; record his purchase time and deadline; increment owner count. Keep Bob as last owner with his pending record. |
 | Carl rejects | Refund active escrow to Carl; send Bob's pending balance to reserve; set Bob's condition status FORFEITED and retain its amount/cycle. Clear current owner and record quarantine station. |
 | Carl inspection ends without rejection | Bob becomes eligible to claim; no immediate transfer or state mutation. Carl remains current owner in HELD. |
 | Sale settlement | Pay the prior condition hold first if still pending. Keep its latest condition record, retain current owner as the final buyer, clear active escrow and set SOLD, permanently invalid and read-only. |
@@ -336,19 +336,22 @@ The coordinate offset keeps signed geographic coordinates in Move's unsigned int
 
 ### Actions and authorization
 
-Station functions require an AdminCap bound to this deployment. Physical attestations also validate StationCap and registry membership. Add a separate client-only `claim_refund` wrapper: verify state is HELD, sender equals last_owner, condition status is PENDING with positive balance, expected current rental_count matches, and inspection has expired; then run the same private condition-payout helper. Do not leave an unrestricted public settlement helper that bypasses these checks. The claim wrapper releases only that owner’s condition hold; it cannot finalize sales or attest custody.
+Station functions require an AdminCap bound to this deployment. Physical attestations also validate StationCap and registry membership. Add a separate client-only `claim_refund` wrapper: verify state is HELD, sender equals last_owner, condition status is PENDING with positive balance, expected current owner_count matches, and inspection has expired; then run the same private condition-payout helper. Do not leave an unrestricted public settlement helper that bypasses these checks. The claim wrapper releases only that owner’s condition hold; it cannot finalize sales or attest custody.
 
 | User action | Function | Signer / permission | Result |
 | --- | --- | --- | --- |
 | Register new station | `create_station` | John with `AdminCap` | Public station record with unique ID, display name, location name, fixed-point coordinates and payout address; `StationCap` issued to John. |
 | Set current station | None | Admin-only UI; no transaction | Change local selection only. |
-| Supply umbrella | `supply` | Alice; anyone can supply | Exact supplier bond escrowed; shared umbrella in `CREATED`; ID added to discovery. |
-| Scan newly supplied umbrella | `activate` | John with `AdminCap` and matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
+| Supply umbrella | `create_umbrella` | Alice; anyone can supply | Exact supplier bond escrowed; shared umbrella in `CREATED`; ID added to discovery. |
+| Scan newly supplied umbrella | `dock_umbrella` | John with `AdminCap` and matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
 | Confirm purchase | `checkout` | Bob, exact purchase payment | Store holder/station/deadline; `DOCKED → HELD`. |
-| **CLAIM REFUND** (CLIENT only) | `claim_refund` | HELD; sender is last_owner; positive PENDING hold; inspection deadline reached; expected current rental_count matches; no admin capability needed | Pay the hold once and record PAID; custody remains HELD. Still allowed at zero buyback until sale cleanup pays it. |
+| **CLAIM REFUND** (CLIENT only) | `claim_refund` | HELD; sender is last_owner; positive PENDING hold; inspection deadline reached; expected current owner_count matches; no admin capability needed | Pay the hold once and record PAID; custody remains HELD. Still allowed at zero buyback until sale cleanup pays it. |
 | **SETTLE PAYMENTS**, zero buyback | `settle_sale` | John with `AdminCap`; no physical attestation | Pay any pending prior hold, distribute current escrow, record final buyer; `→ SOLD`. |
-| Scan normal return | `return_asset` | John with `AdminCap` and receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
+| Scan normal return | `dock_umbrella` | John with `AdminCap` and receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
 | Scan fault return | `reject_and_quarantine` | John with `AdminCap` and receiving `StationCap`, before deadline | Full current refund, prior hold to reserve, record station; `HELD → QUARANTINED`. |
+
+`dock_umbrella` handles both first deposit and normal return. It takes `AdminCap`, the receiving `StationCap` and `Station`, the umbrella, the expected current owner count, `Clock`, and transaction context. The station capability must reference the supplied station object. First deposits preserve the supplier collateral and its cycle-zero condition record. Customer returns settle payments before docking and replace the condition record with the returning customer's hold. Both paths reject a stale owner count; already docked, quarantined and sold umbrellas cannot be docked again.
+
 | Print, scan, view or deny | None | No economic transaction | Navigation or local UI only until a confirmed signed action. |
 
 At the exact inspection deadline, fault return is closed and normal return and prior-owner claims are allowed; normal return additionally requires positive buyback. At the exact zero-buyback cutoff, normal return is closed even before sale settlement. A chain transaction is required to release money or change stored state; time passing alone does neither. The state is HELD from purchase onward; inspection, charged usage, and effective sale before cleanup are all derived from time and buyback.
@@ -365,7 +368,7 @@ QR readers accept the dapp's umbrella URL format and validate the object against
 
 Pending refunds show “Supplier collateral awaiting first inspection” when `last_condition_cycle` is zero, otherwise “Return hold awaiting next inspection.” After settlement, remove the amount from pending totals and show PAID as **Refund paid**, or FORFEITED as **Return quarantined — pending refund not paid**. Read these results from the umbrella's latest condition record, retaining its amount after the balance is cleared. Show this section as **Latest refund results**, not a complete history. A later normal return replaces that record as specified in section 7. When replacing a record, display only the new owner’s result; do not attribute the previous owner’s payout to them.
 
-Before signing a station return, claim or settlement, re-read the umbrella and pass the expected rental cycle for onchain validation. A delayed request must not apply to a newer customer. Validate against current `rental_count`, not `last_condition_cycle`, which identifies the earlier rental that created the hold. Price estimates use the current time; final refund amounts use the transaction execution timestamp.
+Before signing a station return, claim or settlement, re-read the umbrella and pass the expected ownership cycle for onchain validation. A delayed request must not apply to a newer customer. Validate against current `owner_count`, not `last_condition_cycle`, which identifies the earlier purchase that created the hold. Price estimates use the current time; final refund amounts use the transaction execution timestamp.
 
 
 ## 9. Demo script

@@ -1,19 +1,68 @@
-/*
 #[test_only]
-module kirisame::kirisame_tests;
-// uncomment this line to import the module
-// use kirisame::kirisame;
+module kirisame::kirisame_tests {
+    use kirisame::umbrella::{Self, Umbrella};
+    use sui::sui::SUI;
 
-#[error(code = 0)]
-const ENotImplemented: vector<u8> = b"Not Implemented";
+    #[test]
+    fun test_create_umbrella() {
+        let supplier = @0xA;
+        let mut scenario = sui::test_scenario::begin(supplier);
+        let bond = sui::coin::mint_for_testing<SUI>(30_000_000, scenario.ctx());
+        umbrella::create_umbrella(bond, scenario.ctx());
+        scenario.next_tx(supplier);
 
-#[test]
-fun test_kirisame() {
-    // pass
+        let umbrella = scenario.take_shared<Umbrella>();
+        let (
+            recorded_supplier,
+            is_created,
+            pending_condition_owner,
+            pending_condition,
+            active_escrow,
+            holder,
+            current_station_id,
+            checkout_station_id,
+            checkout_payout_address,
+            checkout_time_ms,
+            inspection_deadline_ms,
+            owner_count,
+            purchase_price,
+            condition_bond,
+            fee_per_ms,
+        ) = umbrella::snapshot_for_testing(&umbrella);
+        assert!(recorded_supplier == supplier);
+        assert!(is_created);
+        assert!(pending_condition_owner == option::some(supplier));
+        assert!(pending_condition == 30_000_000);
+        assert!(active_escrow == 0);
+        assert!(holder.is_none());
+        assert!(current_station_id.is_none());
+        assert!(checkout_station_id.is_none());
+        assert!(checkout_payout_address.is_none());
+        assert!(checkout_time_ms == 0);
+        assert!(inspection_deadline_ms == 0);
+        assert!(owner_count == 0);
+        assert!(purchase_price == 100_000_000);
+        assert!(condition_bond == 30_000_000);
+        assert!(fee_per_ms == 330);
+        let (docked, condition_amount, condition_cycle, pending) = umbrella::docking_snapshot_for_testing(&umbrella);
+        assert!(!docked && pending);
+        assert!(condition_amount == 30_000_000 && condition_cycle == 0);
+
+        sui::test_scenario::return_shared(umbrella);
+        scenario.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
+    fun test_create_umbrella_underpayment() {
+        let mut ctx = tx_context::dummy();
+        umbrella::create_umbrella(sui::coin::mint_for_testing<SUI>(29_999_999, &mut ctx), &mut ctx);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
+    fun test_create_umbrella_overpayment() {
+        let mut ctx = tx_context::dummy();
+        umbrella::create_umbrella(sui::coin::mint_for_testing<SUI>(30_000_001, &mut ctx), &mut ctx);
+    }
 }
-
-#[test, expected_failure(abort_code = ::kirisame::kirisame_tests::ENotImplemented)]
-fun test_kirisame_fail() {
-    abort ENotImplemented
-}
-*/

@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../sui-stack-hello-world"
+		}
+	],
+	"settings": {}
+}
