@@ -1,0 +1,286 @@
+# Umbrella sharing — project flows
+
+This document shows user actions, custody states and money movement for the [main MVP plan](mvp-plan.md). Contract function names and field definitions belong in that plan.
+
+**One dapp, two phones.** Alice, Bob and Carl use CLIENT. John uses STATION and is both admin and station operator for the demo. Every station action is admin-only. All money and gas use native SUI. Both phones read the chain directly; there is no application server or background worker.
+
+**Purchase sets HELD immediately.** Inspection is the first two minutes of that purchase, not a separate stored state. Time passing never needs a timer-start transaction. **SETTLE PAYMENTS only finalizes zero-buyback purchases**, pays remaining escrow, and records SOLD for cleanup.
+
+## 1. Alice supplies an umbrella
+
+Assume John has selected a registered station; section 2 shows that setup.
+
+```mermaid
+sequenceDiagram
+    actor Alice
+    participant Client as CLIENT phone and Alice wallet
+    participant Chain as Sui contract
+    participant John as John - admin and station operator
+    participant Station as STATION phone and John wallet
+
+    Alice->>Client: SUPPLY UMBRELLA
+    Client-->>Alice: Review collateral; CONFIRM or DENY
+    Alice->>Client: CONFIRM and sign 0.03 SUI collateral payment
+    Client->>Chain: Register new umbrella and escrow supplier collateral
+    Chain-->>Client: Umbrella ID; CREATED; supplier Alice
+    Client-->>Alice: Printable QR, URL and object ID
+    Alice->>Alice: PRINT QR and attach tag
+    Alice->>John: Hand over tagged umbrella
+    John->>Station: SCAN RETURNED OR SUPPLIED UMBRELLA
+    Station->>Chain: Read umbrella and station
+    Chain-->>Station: New supply awaiting physical deposit
+    John->>Station: Review and sign deposit
+    Station->>Chain: Attest arrival at selected station
+    Chain-->>Station: DOCKED; available to purchase
+    John->>John: Put umbrella into normal bin
+```
+
+Alice can reopen and reprint the same tag without another payment. Her collateral becomes claimable after the first customer's inspection ends without rejection. It is paid through her claim, that customer's eligible normal return, or final zero-buyback settlement. It is forfeited if the first customer fault-returns within inspection. Alice remains the original supplier and revenue recipient across later purchases.
+
+## 2. John registers and selects a station
+
+```mermaid
+flowchart TD
+    Start["John opens admin-only STATION tab"] --> Register["REGISTER NEW STATION"]
+    Register --> Details["Enter yoyogi, location name,<br/>latitude and longitude; CONFIRM or DENY"]
+    Details -->|DENY| Home["Return to station menu"]
+    Details -->|CONFIRM| Sign["John signs registration as admin"]
+    Sign --> Created["Create named station with onchain location<br/>and operator authorization<br/>Payout address defaults to John"]
+    Created --> ID["After success: show station ID"]
+    ID --> Select["SET CURRENT STATION"]
+    Select --> List["Choose Yoyogi from dropdown; CONFIRM or DENY"]
+    List -->|DENY| Home
+    List -->|CONFIRM| Selected["Store selection on station phone<br/>No transaction; no new permission"]
+    Selected --> Inventory["Show name, ID, location and live inventory<br/>Normal bin and quarantine bin"]
+```
+
+All STATION controls require admin access. Physical deposit and return transactions also require authorization for the selected station, enforced onchain. Selecting a station does not grant that authority. Inventory data itself remains public.
+
+## 3. Bob purchases the umbrella
+
+The default camera and in-dapp scanner lead to the same confirmation page. Bob does not scan twice.
+
+```mermaid
+flowchart TD
+    Home["CLIENT main page<br/>SUI balance; purchases; pending refunds<br/>Latest refund results; supplied umbrellas"] --> Purchase["PURCHASE UMBRELLA"]
+    Purchase --> Scanner["Dapp QR scanner"]
+    Camera["Default phone camera scans printed tag"] --> URL["Open umbrella URL"]
+    Scanner --> URL
+    URL --> Read["Read umbrella from chain<br/>Connect wallet without losing the URL"]
+    Read --> Available{"DOCKED and buyable?"}
+    Available -->|No| Status["Show status; no purchase action"]
+    Available -->|Yes| Review["Show umbrella, supplier, station and SUI terms<br/>Explain the two-minute inspection window"]
+    Review -->|DENY| Home
+    Review -->|CONFIRM| Sign["Bob signs purchase payment"]
+    Sign --> Chain["Contract accepts exact payment<br/>Records Bob as current owner<br/>Sets HELD and purchase timestamp"]
+    Chain --> Confirmed["Wait for successful confirmation"]
+    Confirmed --> Client["CLIENT: HELD, inspecting<br/>Show two-minute inspection countdown"]
+    Confirmed --> Station["STATION: remove from normal-bin inventory<br/>Show release permitted"]
+    Station --> Take["John lets Bob take umbrella<br/>No second release transaction"]
+```
+
+The client also offers **SUPPLY UMBRELLA**, which opens the flow in section 1. Purchasing escrows the full price upfront. Gas is separate from that payment.
+
+## 4. One HELD state, three time-based phases
+
+These are **display phases**, not additional stored custody states.
+
+```mermaid
+flowchart LR
+    Purchase["Purchase confirmed<br/>Stored state: HELD"] --> Inspect["First two minutes<br/>Inspection open; no usage charge<br/>Fault return available"]
+    Inspect -->|Two minutes elapse| Use["Inspection closed<br/>Buyback decreases with time<br/>Normal return allowed while positive"]
+    Use -->|Buyback reaches zero| Effective["Sold - payment settlement pending<br/>No return allowed<br/>Stored state still HELD"]
+    Effective -->|John signs SETTLE PAYMENTS| Final["Escrow distributed<br/>Stored state: SOLD<br/>Permanently invalid, read-only record"]
+```
+
+Inspection ending requires no signature, acceptance action or state transition. The dapp estimates buyback from the purchase timestamp; transactions use chain time for the authoritative result. Charges apply only to elapsed time **after purchase time plus 120 seconds**.
+
+At the current demo rate, buyback reaches zero 7 minutes 3.031 seconds after purchase. At that exact cutoff returns are prohibited, even if settlement has not run. A scan or signature before the cutoff does not reserve return eligibility.
+
+## 5. Bob rejects or returns
+
+```mermaid
+flowchart TD
+    Bob["Bob holds umbrella after purchase"] --> Fault{"Fault return confirmed within inspection?"}
+    Fault -->|Yes| Reject["John uses SCAN QUARANTINED UMBRELLA<br/>Reviews and signs physical fault return"]
+    Reject --> Quarantine["Bob receives full purchase refund<br/>Alice collateral goes to maintenance reserve<br/>QUARANTINED at receiving station"]
+    Quarantine --> Bin["John puts umbrella in quarantine bin"]
+    Fault -->|No| Expiry["Inspection ends; umbrella stays HELD<br/>Usage begins accruing<br/>Alice collateral becomes claimable"]
+    Expiry --> Use["Bob uses umbrella<br/>Returns while buyback remains positive"]
+    Use --> Scan["John uses SCAN RETURNED OR SUPPLIED UMBRELLA<br/>Reviews and signs physical return"]
+    Scan --> Pay["Pay Alice collateral if still pending<br/>Calculate Bob usage and refund<br/>Distribute revenue; retain Bob condition hold"]
+    Pay --> Dock["DOCKED at receiving station<br/>John puts umbrella in normal bin"]
+    Dock --> Pending["Bob CLIENT: Refund pending<br/>Waiting for next customer inspection"]
+```
+
+The fault-return transaction must execute before the inspection deadline. The normal-return transaction may execute at or after the inspection deadline and strictly before buyback reaches zero. After inspection, damage is the holder's responsibility; there is no late full-refund rejection.
+
+If Bob's return executes exactly five minutes after purchase, three minutes are charged: **0.0594 SUI usage, 0.0106 SUI immediate refund, and 0.03 SUI pending**. For shorter use, buyback above the 0.03 SUI condition hold is paid immediately. There is no station settlement step between purchase and normal return.
+
+## 6. Carl's inspection determines Bob's pending refund
+
+```mermaid
+sequenceDiagram
+    actor Carl
+    participant Client as CLIENT phone and Carl wallet
+    participant John as John - admin and station operator
+    participant Chain as Sui contract
+    participant Bob as Bob wallet and CLIENT view
+
+    Carl->>Client: Scan Bob's returned umbrella; open purchase page
+    Carl->>Client: CONFIRM and sign 0.10 SUI purchase
+    Client->>Chain: Submit purchase
+    Chain->>Chain: Set HELD with Carl as current owner; retain Bob's pending hold
+    Note over Chain,Bob: Carl's first two minutes are inspection
+
+    alt Carl fault-returns before inspection ends
+        Carl->>John: Physically surrender umbrella
+        John->>Chain: Scan quarantine tag and sign fault return
+        Chain-->>Carl: Refund full 0.10 SUI purchase
+        Chain->>Chain: Bob hold to maintenance reserve; retain forfeited result
+        Chain-->>John: QUARANTINED; place in quarantine bin
+        Bob->>Chain: Refresh latest refund results
+        Chain-->>Bob: Return quarantined - pending refund not paid
+    else Carl does not reject
+        Note over Chain,Bob: Deadline passes; state remains HELD; no automatic payment
+        Bob->>Chain: Read pending refund eligibility
+        Chain-->>Bob: Ready to claim
+        Bob->>Chain: CLAIM REFUND; sign as pending owner
+        Chain-->>Bob: Pay 0.03 SUI; retain paid result
+        Note over Client,Chain: Carl remains HELD; ownership and timer unchanged
+    end
+```
+
+Bob keeps the 0.0106 SUI already paid on his return even if Carl rejects; only the pending 0.03 SUI is forfeited.
+
+If Bob does not claim, his pending hold is paid during Carl's eligible normal return, or when John settles Carl's zero-buyback purchase. **SETTLE PAYMENTS does not pay Bob merely because Carl's inspection expired.** Alice can use the same client claim action for her initial collateral.
+
+Bob may still claim at zero buyback while the purchase remains HELD and his hold is pending; this does not let Carl return the umbrella.
+
+The latest result survives refresh while Bob remains the last owner. Carl's next normal return replaces that record with Carl's new condition hold; the MVP does not keep a complete historical ledger.
+
+## 7. Station scanners
+
+```mermaid
+flowchart TD
+    Access{"Admin wallet authorized for selected station<br/>and current station selected?"}
+    Access -->|No| Disabled["Disable scanners; explain missing access or station"]
+    Access -->|Yes| Button{"Which scan button?"}
+    Button -->|SCAN RETURNED OR SUPPLIED UMBRELLA| Read["Decode QR and read umbrella"]
+    Read --> State{"Stored state?"}
+    State -->|CREATED| Deposit["John reviews and signs new-supply deposit"]
+    State -->|HELD| Eligible{"Inspection ended<br/>and buyback positive?"}
+    Eligible -->|Yes| Return["John reviews and signs normal return"]
+    Eligible -->|No| Explain["Inspection still open OR return period ended<br/>No normal return"]
+    State -->|DOCKED| Duplicate["Already deposited; do not submit again"]
+    State -->|QUARANTINED or SOLD| Unavailable["Unavailable; no normal-bin action"]
+    Deposit --> Success["After confirmation: refresh normal-bin inventory"]
+    Return --> Success
+    Button -->|SCAN QUARANTINED UMBRELLA| Fault["Decode QR and read umbrella"]
+    Fault --> Window{"HELD and inspection still open?"}
+    Window -->|No| Refuse["No fault-return action"]
+    Window -->|Yes| Quarantine["John reviews and signs fault return"]
+    Quarantine --> Confirm["After confirmation: refresh quarantine inventory"]
+```
+
+Pause scanning after one decoded tag and prevent repeated prompts. The chain rechecks state, time, authorization and purchase cycle at execution. On a failed or denied transaction, do not show a completed deposit or refund. Refresh uncertain transaction results before retrying.
+
+## 8. Custody state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED: Supplier registers and pays collateral
+    CREATED --> DOCKED: John confirms physical deposit
+    DOCKED --> HELD: Customer purchases
+    HELD --> QUARANTINED: John confirms fault return during inspection
+    HELD --> DOCKED: John confirms normal return after inspection with positive buyback
+    HELD --> SOLD: John confirms SETTLE PAYMENTS at zero buyback
+
+    note right of HELD
+        Set immediately at purchase.
+        Includes inspection, charged use and zero-buyback waiting for cleanup.
+        Time passing and a prior owner's refund claim do not change custody.
+    end note
+    note right of SOLD
+        Permanently invalid, read-only record.
+        Physical umbrella stays with buyer; escrow balances are zero.
+        Old QR displays finalized purchase; no further actions.
+    end note
+    note right of QUARANTINED
+        Recorded in receiving station's quarantine bin.
+        No purchase or reactivation in MVP.
+    end note
+```
+
+These five states are the entire stored custody model. HELD does not imply that a prior owner's condition hold has already been paid. At zero buyback the item is effectively sold; the final transaction pays remaining funds and records that outcome as SOLD.
+
+## 9. SETTLE PAYMENTS — zero-buyback cleanup only
+
+```mermaid
+flowchart TD
+    Button["Admin John presses SETTLE PAYMENTS"] --> Read["Read all registered umbrellas directly from chain<br/>Include those held away from stations"]
+    Read --> Eligible{"HELD and zero buyback?"}
+    Eligible -->|No| Skip["Skip<br/>Including positive-buyback purchases after inspection"]
+    Eligible -->|Yes| Preview["Preview eligible umbrellas and payment recipients"]
+    Preview --> Sign["John confirms and signs bounded transactions"]
+    Sign --> Check["Contract verifies admin, current purchase and zero buyback"]
+    Check --> Prior["Pay prior owner's condition hold if still pending"]
+    Prior --> Split["Distribute current purchase escrow<br/>70% original supplier; 30% checkout station"]
+    Split --> Sold["Clear escrow and record SOLD<br/>Keep owners and latest refund result<br/>Permanently invalid, read-only"]
+    Sold --> Result["Show confirmed results and refresh both views"]
+```
+
+The checks and payouts for each umbrella execute atomically. If a batch fails, its operations roll back; refetch and retry only eligible items. A repeated submission must not pay twice. The selected station does not affect eligibility or recipients.
+
+The buyer pays nothing more. For a 0.10 SUI purchase, the supplier receives 0.07 SUI and the checkout station receives 0.03 SUI. An unpaid prior owner's condition hold is a **separate balance** and is also released. It does not reduce those 0.10 SUI proceeds.
+
+This button never starts usage, changes a purchase into HELD, processes positive-buyback returns, or releases holds on umbrellas waiting DOCKED for another customer.
+
+## 10. Refund and revenue accounting
+
+Normal return requires positive buyback and uses **70% supplier / 15% checkout station / 15% return station** for usage revenue. Zero-buyback cleanup uses **70% supplier / 30% checkout station** for the full purchase escrow. All amounts exclude gas.
+
+| Bob returns exactly five minutes after purchase | SUI |
+| --- | ---: |
+| Purchase payment | 0.1000 |
+| Usage fee: three charged minutes | 0.0594 |
+| Supplier portion of fee | 0.04158 |
+| Checkout station portion of fee | 0.00891 |
+| Return station portion of fee | 0.00891 |
+| Immediate refund | 0.0106 |
+| Bob's new pending condition hold | 0.0300 |
+
+The first two minutes are free inspection. Afterward, the demo rate is 0.0198 SUI per minute. The calculation is based on elapsed time; no process runs a timer onchain. The contract uses exact integer amounts, so a displayed value rounded to zero must not decide return eligibility.
+
+A full fault-return refund returns the current customer's purchase payment and forfeits the prior condition hold to the maintenance reserve. A successful claim pays only the pending condition hold; it never refunds the current buyer's active purchase.
+
+## 11. System responsibilities
+
+```mermaid
+flowchart TB
+    subgraph Dapp["One dapp on two phones"]
+        Client["CLIENT<br/>Supply and print QR; purchase<br/>Balance, pending claims and latest results"]
+        Wallet["Alice / Bob / Carl wallet"]
+        Station["Admin-only STATION<br/>Register/select; scan both bins<br/>SETTLE PAYMENTS at zero buyback"]
+        Admin["John wallet<br/>Admin and station operator"]
+        Client -->|Approve payments and claims| Wallet
+        Station -->|Approve station actions| Admin
+    end
+    subgraph Chain["Sui Testnet"]
+        Access["Chain reads and signed transactions"]
+        Contract["Contract<br/>Custody, timing, permissions and SUI payouts"]
+        Registry["Stations and registered umbrella IDs"]
+        Umbrella["Umbrella records<br/>Original supplier; last and current owners<br/>Latest condition amount and outcome; escrow"]
+        Clock["Authoritative chain time"]
+        Access --> Contract
+        Contract <--> Registry
+        Contract <--> Umbrella
+        Clock --> Contract
+    end
+    Wallet -->|Submit signed client actions| Access
+    Admin -->|Submit signed admin actions| Access
+    Client <-->|Read directly| Access
+    Station <-->|Read directly| Access
+```
+
+Every station mutation requires admin authority onchain; physical attestations also require authorization for the receiving station. Customers can supply, purchase and claim their own eligible refunds, but cannot use station controls. Static dapp hosting and chain access are sufficient; no server, timer worker or internal-function controls are part of these flows.
