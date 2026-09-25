@@ -3,7 +3,18 @@ module kirisame::umbrella {
     use sui::balance::Balance;
     use sui::clock::Clock;
     use sui::coin::Coin;
+    use std::string::String;
     
+    public struct AdminCap has key, store {
+        id: UID,
+    }
+
+    public struct StationCap has key, store {
+        id: UID,
+        station_id: u64,
+        payout_address: address,
+    }
+
     public enum UmbrellaState has copy, drop, store {
         Created,
         Docked,
@@ -16,8 +27,8 @@ module kirisame::umbrella {
         id: UID,
         supplier: address,
         state: UmbrellaState,
-        current_station_id: UID,
-        checkout_station_id: UID,
+        current_station_id: u64,
+        checkout_station_id: u64,
         holder: address,
         has_holder: bool,
 
@@ -34,5 +45,22 @@ module kirisame::umbrella {
         has_pending_condition_owner: bool,
 
         rental_count: u64,
+    }
+
+    public struct Station has key, store {
+        id: UID,
+        station_id: u64,
+        display_name: String,
+        location_name: String,
+        latitude_e6: u64,
+        longitude_e6: u64,
+        payout_address: address,
+    }
+
+    fun init(ctx: &mut TxContext) {
+        transfer::transfer(
+            AdminCap {id: object::new(ctx)}, 
+            ctx.sender(),
+        );
     }
 }
