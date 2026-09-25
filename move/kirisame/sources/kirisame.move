@@ -173,15 +173,7 @@ module kirisame::umbrella {
             UmbrellaState::Held => {
                 let now = clock.timestamp_ms();
                 assert!(now >= umbrella.inspection_deadline_ms, EInspectionOpen);
-                let elapsed = now - umbrella.inspection_deadline_ms;
-                // Compare before multiplying so even a very late return cannot overflow.
-                let usage = if (umbrella.fee_per_ms == 0) {
-                    0
-                } else if (elapsed > umbrella.purchase_price / umbrella.fee_per_ms) {
-                    umbrella.purchase_price
-                } else {
-                    elapsed * umbrella.fee_per_ms
-                };
+                let usage = usage_fee(umbrella, now);
                 let buyback = umbrella.purchase_price - usage;
                 assert!(buyback > 0, ENoBuyback);
 
@@ -282,6 +274,54 @@ module kirisame::umbrella {
         umbrella.holder = option::none();
         umbrella.current_station_id = option::some(object::id(station));
         umbrella.state = UmbrellaState::Quarantined;
+    }
+
+    /// Periodic sweep primitive: call once per discovered shared umbrella (or
+    /// compose bounded PTBs). Sui cannot enumerate shared objects inside Move.
+    /// Skips non-held and positive-buyback purchases, including repeated calls.
+    /// Sold records retain the final buyer and prior condition result.
+    public fun admin_settle_pending_payments(
+        _admin: &AdminCap,
+        umbrella: &mut Umbrella,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        if (umbrella.state != UmbrellaState::Held) return;
+        if (clock.timestamp_ms() < umbrella.inspection_deadline_ms) return;
+        if (usage_fee(umbrella, clock.timestamp_ms()) < umbrella.purchase_price) return;
+
+        pay_pending_condition(umbrella, ctx);
+        let amount = umbrella.active_escrow.value();
+        let supplier_share = share(amount, 70);
+        pay(&mut umbrella.active_escrow, supplier_share, umbrella.supplier, ctx);
+        pay(
+            &mut umbrella.active_escrow,
+            amount - supplier_share,
+            *umbrella.checkout_payout_address.borrow(),
+            ctx,
+        );
+        umbrella.state = UmbrellaState::Sold;
+    }
+
+    // Cap before multiplying, including timestamps near u64::MAX.
+    fun usage_fee(umbrella: &Umbrella, now: u64): u64 {
+        if (now <= umbrella.inspection_deadline_ms || umbrella.fee_per_ms == 0) return 0;
+        let elapsed = now - umbrella.inspection_deadline_ms;
+        if (elapsed > umbrella.purchase_price / umbrella.fee_per_ms) {
+            umbrella.purchase_price
+        } else {
+            elapsed * umbrella.fee_per_ms
+        }
+    }
+
+    #[test_only]
+    public(package) fun sale_snapshot_for_testing(umbrella: &Umbrella): (bool, bool, u64, u64) {
+        (
+            umbrella.state == UmbrellaState::Sold,
+            umbrella.last_condition_status == ConditionStatus::Paid,
+            umbrella.last_condition_amount,
+            umbrella.last_condition_cycle,
+        )
     }
 
     #[test_only]

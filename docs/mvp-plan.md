@@ -261,9 +261,9 @@ This button simulates automation; it does not run in the background. If nobody p
 
 ### Zero-buyback final settlement
 
-The buyer already paid the full purchase price at checkout; settlement charges them nothing more and requires no buyer signature. At zero buyback, the umbrella cannot be returned, even while its stored state is HELD awaiting cleanup. `admin_settle_sale` releases any still-pending prior condition hold, distributes the active escrow, records the final buyer, and marks `SOLD`.
+The buyer already paid the full purchase price at checkout; settlement charges them nothing more and requires no buyer signature. At zero buyback, the umbrella cannot be returned, even while its stored state is HELD awaiting cleanup. `admin_settle_pending_payments` releases any still-pending prior condition hold, distributes the active escrow, records the final buyer, and marks `SOLD`.
 
-SOLD means **permanently invalid**. Retain the shared object, registry ID, owners and latest condition result for read-only display; do not delete it. All umbrella-mutating functions reject a SOLD record, including activation, checkout, returns, claims and repeat settlement. Both escrow balances are zero. The old QR opens an “Invalid — purchase finalized” page with no actions. Keep the object discoverable for finalized purchases and the prior owner’s latest refund result, but exclude it from station inventories and further settlement work.
+SOLD means **permanently invalid**. Retain the shared object, registry ID, owners and latest condition result for read-only display; do not delete it. All umbrella-mutating functions reject a SOLD record, including activation, checkout, returns and claims. Periodic settlement skips SOLD records without modifying them. Both escrow balances are zero. The old QR opens an “Invalid — purchase finalized” page with no actions. Keep the object discoverable for finalized purchases and the prior owner’s latest refund result, but exclude it from station inventories and further settlement work.
 
 For a sale without return, distribute **70% to the original supplier and 30% to the recorded checkout station**. There is no return-station payout. Floor the supplier share and allocate the remainder to the checkout station so all MIST is distributed. The station that presses SETTLE PAYMENTS gains no additional payout.
 
@@ -346,7 +346,7 @@ Station registration and planned payment settlement require an AdminCap bound to
 | Scan newly supplied umbrella | `station_dock_umbrella` | Operator with matching `StationCap` | Record selected station; `CREATED → DOCKED`. |
 | Confirm purchase | `user_undock_umbrella` | Bob, exact purchase payment | Store holder/station/deadline; `DOCKED → HELD`. |
 | **CLAIM REFUND** (CLIENT only) | `user_claim_refund` | HELD; sender is last_owner; positive PENDING hold; inspection deadline reached; expected current owner_count matches; no admin capability needed | Pay the hold once and record PAID; custody remains HELD. Still allowed at zero buyback until sale cleanup pays it. |
-| **SETTLE PAYMENTS**, zero buyback | `admin_settle_sale` | John with `AdminCap`; no physical attestation | Pay any pending prior hold, distribute current escrow, record final buyer; `→ SOLD`. |
+| **SETTLE PAYMENTS**, zero buyback | `admin_settle_pending_payments` | John with `AdminCap`; no physical attestation | Pay any pending prior hold, distribute current escrow, record final buyer; `→ SOLD`. |
 | Scan normal return | `station_dock_umbrella` | Operator with receiving `StationCap` | Require ended inspection and strictly positive buyback; pay any pending prior hold, refund/split/hold, record station; `→ DOCKED`. |
 | Scan fault return | `station_quarantine_umbrella` | Operator with receiving `StationCap`, before deadline | Full current refund, prior hold to reserve, record station; `HELD → QUARANTINED`. |
 
