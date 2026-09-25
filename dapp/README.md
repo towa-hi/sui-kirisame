@@ -71,3 +71,17 @@ Coordinate inputs accept the contract's encoded unsigned E6 values.
 
 Run `npm test` for transaction construction, validation, capability, and result
 handling tests. Tests use a mocked chain client and never submit transactions.
+
+## Create umbrella
+
+In **User → Supply**, choose Vinyl, Black, or White from the color dropdown,
+then select **Create umbrella**. Slush approves the testnet transaction, which
+posts the contract's 0.03 SUI condition bond plus network gas. Any connected
+wallet can create an umbrella; no AdminCap is required. The umbrella starts in
+`Created` and must be physically delivered to a station for docking.
+
+`POST /api/supply/create` validates the sender and color and returns an unsigned
+`user_create_umbrella` transaction. Its default package matches the current
+`move/kirisame/Published.toml`; `KIRISAME_PACKAGE_ID` overrides it. The form keeps
+the selected color after failure and includes a transaction link when a digest
+is available. Success is shown only after chain confirmation.

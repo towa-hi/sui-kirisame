@@ -5,6 +5,8 @@ import { isValidSuiAddress } from "@mysten/sui/utils";
 import { adminRoutes } from "./admin-routes.js";
 import { page } from "./page.js";
 
+import { supplyRoutes } from "./supply-routes.js";
+
 const app = new Hono();
 const sui = new SuiGrpcClient({ network: "testnet", baseUrl: "https://fullnode.testnet.sui.io:443" });
 
@@ -21,6 +23,7 @@ app.get("/api/balance/:address", async (c) => {
 });
 
 app.route("/api/admin", adminRoutes(sui));
+app.route("/api/supply", supplyRoutes());
 
 app.get("/", (c) => c.html(page));
 app.get("/health", (c) => c.json({ ok: true }));

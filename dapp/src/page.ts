@@ -1,5 +1,7 @@
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
 
+import { supplyMarkup, supplyScript } from "./supply.js";
+
 const walletAddressNames = {
   '0xc5313e6b1943b8cc82f266d72ef2862a2ce32c8a6e1d609a5d4c55ba0cccb604': 'mono',
   '0xd821bffd23aadb112378600d8c02d89217d2a5f5bbe5574c1bcc887a686b5070': 'bob-borrower',
@@ -90,6 +92,8 @@ export const page = /* html */ `<!doctype html>
       .wallet-status:empty { display: none; }
       .status { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #cad4cc; color: #526358; }
       ${adminStyles}
+      #supply-error { color: #9a332e; }
+      #supply-error:empty, #supply-result:empty { display: none; }
     </style>
   </head>
   <body>
@@ -116,8 +120,7 @@ export const page = /* html */ `<!doctype html>
             <p class="status">Under construction. Features are coming one at a time.</p>
           </section>
           <section id="supply-panel" role="tabpanel" aria-labelledby="supply-tab" hidden>
-            <button type="button" class="umbrella-action">SUPPLY UMBRELLA</button>
-            <p class="status">Under construction. Features are coming one at a time.</p>
+            ${supplyMarkup}
           </section>
         </div>
       </section>
@@ -133,6 +136,7 @@ export const page = /* html */ `<!doctype html>
     ${adminOverlay}
     <script>
       ${adminScript}
+      ${supplyScript}
       const buttons = [...document.querySelectorAll('.connect-wallet')];
       const statuses = [...document.querySelectorAll('.wallet-status')];
       const details = [...document.querySelectorAll('.wallet-details')];
@@ -154,6 +158,7 @@ export const page = /* html */ `<!doctype html>
       renderAdminAccess();
 
       function renderWallet(message = '') {
+        renderSupplyAccess();
         renderAdminAccess();
         for (const button of buttons) {
           button.disabled = pending;
