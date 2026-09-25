@@ -29,7 +29,7 @@ try {
   const health = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(5000) });
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { ok: true });
-  console.log("Production smoke check passed: placeholder and health endpoint.");
+  console.log("Production smoke check passed: main page and health endpoint.");
 } finally {
   server.kill("SIGTERM");
   await Promise.race([exited, setTimeout(2000, undefined, { ref: false }).then(() => server.kill("SIGKILL"))]);

@@ -12,13 +12,13 @@ npm run dev
 Open http://localhost:3001. The development server restarts when source files change.
 Use `PORT=3002 npm run dev` to choose another port.
 
-- `GET /` serves the placeholder page.
+- `GET /` serves the main page.
 - `GET /health` returns `{ "ok": true }`.
 - `npm start` runs the compiled production server (run `npm run build` first).
 - `npm run typecheck` checks TypeScript.
 - `npm run build` compiles to `dist/`; run the compiled server with `node dist/index.js`.
 
-Edit `src/placeholder.ts` for the page and `src/index.ts` for routes.
+Edit `src/page.ts` for the page and `src/index.ts` for routes.
 
 ## Deployment
 

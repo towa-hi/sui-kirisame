@@ -1,10 +1,10 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { placeholder } from "./placeholder.js";
+import { page } from "./page.js";
 
 const app = new Hono();
 
-app.get("/", (c) => c.html(placeholder));
+app.get("/", (c) => c.html(page));
 app.get("/health", (c) => c.json({ ok: true }));
 
 const port = Number(process.env.PORT ?? 3001);
