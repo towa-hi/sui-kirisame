@@ -19,7 +19,7 @@ module kirisame::retire_umbrella_tests {
     // 3 stale cycle; 4 duplicate; 5 dock; 6 purchase; 7 quarantine; 8 review.
     fun retire_case(approve: bool, mode: u8) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
         let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
@@ -88,7 +88,7 @@ module kirisame::retire_umbrella_tests {
         // Replacement follows ordinary supply: a new identity, admin as supplier,
         // and a fresh bond; nothing is inherited from the retired record.
         scenario.next_tx(@0xE);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xE);
         let replacement = scenario.take_shared<Umbrella>();
         assert!(object::id(&replacement) != asset_id);

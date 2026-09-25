@@ -17,7 +17,7 @@ module kirisame::settle_pending_payments_tests {
 
     fun run(state: u8, now: u64, already_paid: bool, settles: bool, try_return: bool) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
         if (state != 0) umbrella::prepare_return_for_testing(&mut asset, state, already_paid);
@@ -78,7 +78,7 @@ module kirisame::settle_pending_payments_tests {
     // pays the recorded prior owner, never its caller or the current buyer.
     fun successor_sweep(final_sale: bool, quarantine: bool) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());
         transfer::public_transfer(admin, @0xD);
         transfer::public_transfer(cap, @0xD);

@@ -8,7 +8,7 @@ module kirisame::dock_umbrella_tests {
     // The fixture supplies the postconditions of checkout.
     fun run_dock(state: u8, now: u64, cycle: u64, wrong_station: bool, duplicate: bool, paid: bool, usage: u64) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
         if (state != 0) {

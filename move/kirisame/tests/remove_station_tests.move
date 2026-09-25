@@ -8,12 +8,12 @@ module kirisame::remove_station_tests {
     // Two actual deposits test omission protection, revocation and refunds.
     fun removal(mode: u8) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xA);
         let first = scenario.take_shared<Umbrella>();
         let first_id = object::id(&first);
         test_scenario::return_shared(first);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xD);
         let mut second = scenario.take_shared<Umbrella>();
         let mut first = scenario.take_shared_by_id<Umbrella>(first_id);

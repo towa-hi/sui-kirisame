@@ -36,6 +36,8 @@ module kirisame::umbrella {
     public struct Umbrella has key {
         id: UID,
         supplier: address,
+        /// Client color mapping: 0 = vinyl, 1 = black, 2 = white.
+        color: u8,
         state: UmbrellaState,
         current_station_id: Option<ID>,
         checkout_station_id: Option<ID>,
@@ -98,6 +100,7 @@ module kirisame::umbrella {
     const EUnsettledCondition: u64 = 11;
     const EStationInactive: u64 = 12;
     const EStationNotRemoving: u64 = 13;
+    const EInvalidColor: u64 = 14;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const ADMIN_PERCENT: u64 = 10;
@@ -193,13 +196,16 @@ module kirisame::umbrella {
     public fun station_docked_count(station: &Station): u64 { station.docked_count }
 
     /// Posts the supplier's condition bond and creates an umbrella awaiting deposit.
-    public fun user_create_umbrella(bond: Coin<SUI>, ctx: &mut TxContext) {
+    /// Color: 0 = vinyl, 1 = black, 2 = white.
+    public fun user_create_umbrella(bond: Coin<SUI>, color: u8, ctx: &mut TxContext) {
+        assert!(color <= 2, EInvalidColor);
         assert!(bond.value() == CONDITION_BOND, EInvalidConditionBond);
 
         let supplier = ctx.sender();
         transfer::share_object(Umbrella {
             id: object::new(ctx),
             supplier,
+            color,
             state: UmbrellaState::Created,
             current_station_id: option::none(),
             checkout_station_id: option::none(),
@@ -220,6 +226,8 @@ module kirisame::umbrella {
             owner_count: 0,
         });
     }
+
+    public fun color(umbrella: &Umbrella): u8 { umbrella.color }
 
     /// Station attests physical receipt of a new umbrella or an eligible return.
     public fun station_dock_umbrella(
