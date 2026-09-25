@@ -1,5 +1,11 @@
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
 
+const walletAddressNames = {
+  '0xc5313e6b1943b8cc82f266d72ef2862a2ce32c8a6e1d609a5d4c55ba0cccb604': 'mono',
+  '0xd821bffd23aadb112378600d8c02d89217d2a5f5bbe5574c1bcc887a686b5070': 'bob-borrower',
+  '0xd8fd6bc0c0bc0bae5c618f1d7408e6febab749e2cf6f0afe178c9dc41fa6c282': 'station',
+};
+
 const walletControl = /* html */ `
           <button type="button" class="connect-wallet">Connect Slush Wallet</button>
           <div class="wallet-details" hidden aria-label="Connected wallet">
@@ -137,7 +143,10 @@ export const page = /* html */ `<!doctype html>
       }
       function renderDetails() {
         for (const panel of details) panel.hidden = !account;
-        for (const address of addresses) address.textContent = account?.address || '';
+        const walletAddress = account?.address || '';
+        const addressNames = ${JSON.stringify(walletAddressNames)};
+        const addressName = addressNames[walletAddress.toLowerCase()];
+        for (const address of addresses) address.textContent = addressName ? addressName + ' · ' + walletAddress : walletAddress;
         for (const balance of balances) balance.textContent = balanceText;
         for (const button of refreshButtons) {
           button.disabled = balancePending;

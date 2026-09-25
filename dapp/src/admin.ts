@@ -1,3 +1,5 @@
+import { stationLocationScript, stationLocationStyles } from './station-location.js';
+
 const objectField = (name: string, label: string) => ({ name, label, kind: 'object' });
 const station = objectField('station', 'Station ID');
 const umbrella = objectField('umbrella', 'Umbrella ID');
@@ -38,6 +40,7 @@ export const adminOverlay = /* html */ `
 `;
 
 export const adminStyles = /* css */ `
+  ${stationLocationStyles}
   .admin-heading { margin: 1.75rem 0 1rem; }
   .admin-heading h1 { font-size: 1.2rem; margin: 0; }
   .admin-heading p { font-size: .8rem; color: #526358; margin: .4rem 0; }
@@ -84,6 +87,7 @@ export const adminScript = /* js */ `
   let adminAction = null;
   let adminPending = false;
   let toastTimer;
+  ${stationLocationScript}
   function showToast(message, tone = 'success') {
     clearTimeout(toastTimer);
     document.getElementById('toast-message').textContent = message;
@@ -113,6 +117,7 @@ export const adminScript = /* js */ `
     document.getElementById('admin-dialog-title').textContent = adminAction.title;
     document.getElementById('admin-dialog-description').textContent = adminAction.description;
     adminError.textContent = '';
+    disposeStationLocation();
     adminFields.replaceChildren();
     for (const field of adminAction.fields) {
       const label = document.createElement('label');
@@ -128,6 +133,7 @@ export const adminScript = /* js */ `
       } else {
         input.type = 'text';
         input.autocomplete = 'off';
+        if (field.name === 'payout_address' && account) input.value = account.address;
         if (field.kind === 'object') {
           input.pattern = '0x[0-9a-fA-F]{1,64}';
           input.placeholder = '0x…';
@@ -142,6 +148,7 @@ export const adminScript = /* js */ `
       label.append(input);
       adminFields.append(label);
     }
+    if (adminAction.id === 'admin_create_station') addStationLocationControls();
     adminDialog.showModal();
   });
   adminCancel.addEventListener('click', () => { if (!adminPending) adminDialog.close(); });
