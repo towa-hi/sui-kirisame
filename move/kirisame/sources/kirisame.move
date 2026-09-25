@@ -21,6 +21,7 @@ module kirisame::umbrella {
         Held,
         Quarantined,
         Sold,
+        Retired,
     }
 
     public enum ConditionStatus has copy, drop, store {
@@ -83,6 +84,7 @@ module kirisame::umbrella {
     const EInvalidPayment: u64 = 8;
     const EInspectionClosed: u64 = 9;
     const EReviewAlreadyFinalized: u64 = 10;
+    const EUnsettledCondition: u64 = 11;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const PURCHASE_PRICE: u64 = 100_000_000;
@@ -211,6 +213,7 @@ module kirisame::umbrella {
             UmbrellaState::Docked => abort EInvalidState,
             UmbrellaState::Quarantined => abort EInvalidState,
             UmbrellaState::Sold => abort EInvalidState,
+            UmbrellaState::Retired => abort EInvalidState,
         };
 
         umbrella.current_station_id = option::some(object::id(station));
@@ -245,6 +248,7 @@ module kirisame::umbrella {
             UmbrellaState::Held => abort EInvalidState,
             UmbrellaState::Quarantined => abort EInvalidState,
             UmbrellaState::Sold => abort EInvalidState,
+            UmbrellaState::Retired => abort EInvalidState,
         };
 
         umbrella.current_station_id = option::none();
@@ -299,6 +303,26 @@ module kirisame::umbrella {
             pay(&mut umbrella.pending_condition, hold, station.maintenance_reserve, ctx);
             umbrella.last_condition_status = ConditionStatus::Forfeited;
         };
+    }
+
+    /// Permanently retire a collected quarantine record after its money is settled.
+    /// Preserves identity, supplier and condition history; clears station inventory.
+    public fun admin_retire_umbrella(
+        _admin: &AdminCap,
+        umbrella: &mut Umbrella,
+        expected_owner_count: u64,
+    ) {
+        assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
+        assert!(umbrella.state == UmbrellaState::Quarantined, EInvalidState);
+        assert!(
+            (umbrella.last_condition_status == ConditionStatus::Paid ||
+                umbrella.last_condition_status == ConditionStatus::Forfeited) &&
+                umbrella.pending_condition.value() == 0 &&
+                umbrella.active_escrow.value() == 0,
+            EUnsettledCondition,
+        );
+        umbrella.current_station_id = option::none();
+        umbrella.state = UmbrellaState::Retired;
     }
 
     /// Periodic sweep primitive: call once per discovered shared umbrella (or
@@ -364,6 +388,11 @@ module kirisame::umbrella {
             umbrella.state == UmbrellaState::Quarantined,
             umbrella.last_condition_status == ConditionStatus::Forfeited,
         )
+    }
+
+    #[test_only]
+    public(package) fun retired_for_testing(umbrella: &Umbrella): bool {
+        umbrella.state == UmbrellaState::Retired
     }
 
     #[test_only]

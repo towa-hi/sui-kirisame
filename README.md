@@ -40,3 +40,19 @@ refund regardless of the review result.
 
 There is no automatic review timeout or maximum docked waiting period in this
 change. Unreviewed holds remain escrowed; those deadline policies are still open.
+
+## Retirement and replacement
+
+`umbrella::admin_retire_umbrella(&AdminCap, &mut Umbrella, expected_owner_count)`
+permanently marks a QUARANTINED umbrella RETIRED after its condition result is
+PAID or FORFEITED and both escrow balances are empty. An approved refund must
+be swept before retirement. Review, sweep and retirement can be composed in one
+transaction. Retirement clears the current station so the item leaves inventory,
+but preserves the object ID, supplier and latest condition record. The old QR
+remains a read-only retired record. Repeated retirement and other custody actions
+abort; the existing sweep skips retired records.
+
+There is no reactivation function. An admin-funded replacement uses the existing
+`user_create_umbrella` supply flow with a fresh bond, a new object ID and QR, and
+normal station activation. The admin becomes the new record's supplier and
+receives its supplier revenue. The old record and its settled funds stay separate.

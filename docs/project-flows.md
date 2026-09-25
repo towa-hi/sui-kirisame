@@ -204,6 +204,7 @@ stateDiagram-v2
     HELD --> QUARANTINED: John confirms inspection rejection during inspection
     HELD --> DOCKED: John confirms normal return after inspection with positive buyback
     HELD --> SOLD: John confirms SETTLE PAYMENTS at zero buyback
+    QUARANTINED --> RETIRED: Admin retires after hold is paid or forfeited
 
     note right of HELD
         Set immediately at purchase.
@@ -219,11 +220,16 @@ stateDiagram-v2
         Recorded in receiving station's quarantine bin.
         Prior hold awaits final admin review.
         Approved refunds use the existing sweep.
-        No purchase or reactivation in MVP.
+        Admin retires after money is settled.
+    end note
+    note right of RETIRED
+        Permanently invalid; removed from station inventory.
+        Preserve identity and latest condition result.
+        Replacement requires a new admin-funded supply record.
     end note
 ```
 
-These five states are the entire stored custody model. HELD does not imply that a prior owner's condition hold has already been paid. At zero buyback the item is effectively sold; the final transaction pays remaining funds and records that outcome as SOLD.
+These six states are the entire stored custody model. HELD does not imply that a prior owner's condition hold has already been paid. At zero buyback the item is effectively sold; the final transaction pays remaining funds and records that outcome as SOLD.
 
 ## 9. SETTLE PAYMENTS — one sweep for holds and sales
 
@@ -309,3 +315,14 @@ flowchart TB
 Station registration, final quarantine reviews and sweeps require AdminCap; physical deposits and quarantine intake require the receiving station’s StationCap. Customers supply and purchase; eligible refunds arrive through the sweep or a normal return without customer action. Static dapp hosting and chain access are sufficient; no server, timer worker or internal-function controls are part of these flows.
 
 Unreviewed holds have no timeout in this version. Normal-bin holds still wait for a successor inspection. Maximum waiting periods and review-timeout refunds require a separate policy decision.
+
+## 12. Retire and replace
+
+During collection, John acts as admin: finalize review, run the existing sweep for
+an approved refund, then retire the settled quarantine record. These calls can be
+batched into one transaction. Retirement moves no funds; it removes the item from
+inventory and leaves the old QR displaying RETIRED with the latest condition result.
+
+For reuse or replacement, John supplies a new umbrella through the existing client
+flow and pays a fresh bond. The admin is the new supplier; the new object gets a
+new QR and requires normal station activation. No reactivation path is added.
