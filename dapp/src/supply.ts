@@ -129,7 +129,7 @@ export const supplyScript = /* js */ `
         supplyQr.src = qrUrl;
         const download = document.getElementById('supply-qr-download');
         download.href = qrUrl;
-        download.download = 'umbrella-' + umbrellaId + '.svg';
+        download.download = 'umbrella-' + umbrellaId + '.png';
         supplyLabel.hidden = false;
       } else {
         supplyResult.append(' The umbrella ID was unavailable, so its QR code could not be generated. Check the transaction for the created object.');

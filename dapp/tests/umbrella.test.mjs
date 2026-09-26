@@ -52,16 +52,20 @@ test('rejects unrelated objects, missing objects and chain failures distinctly',
 test('all rendered inline scripts parse', () => {
   for (const match of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(match[1]);
 });
-test('QR encodes the Slush browse umbrella link with a quiet zone and download filename', async () => {
+test('QR serves a Photos-compatible PNG with the Slush browse link, quiet zone, and download filename', async () => {
   const routes = umbrellaRoutes({ getObject: () => { throw Error('QR generation needs no chain query'); } });
   const response = await routes.request('/' + id + '/qr?origin=https%3A%2F%2Fkirisame.example');
   assert.equal(response.status, 200);
-  assert.match(response.headers.get('content-type'), /image\/svg\+xml/);
-  assert.match(response.headers.get('content-disposition'), /umbrella-0x1+\.svg/);
+  assert.equal(response.headers.get('content-type'), 'image/png');
+  assert.equal(response.headers.get('content-disposition'), `inline; filename="umbrella-${id}.png"`);
   const destination = 'https://kirisame.example/?umbrella=' + id;
   const slushLink = 'https://my.slush.app/browse/' + encodeURIComponent(destination);
-  const expected = await QRCode.toString(slushLink, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
-  assert.equal(await response.text(), expected);
+  const expected = await QRCode.toBuffer(slushLink, { type: 'png', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+  const image = Buffer.from(await response.arrayBuffer());
+  assert.deepEqual(image.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  assert.equal(image.readUInt32BE(16), 320);
+  assert.equal(image.readUInt32BE(20), 320);
+  assert.deepEqual(image, expected);
   for (const origin of ['javascript:alert(1)', 'https://evil.example/path', 'https://user:pass@example.com']) {
     assert.equal((await routes.request('/' + id + '/qr?origin=' + encodeURIComponent(origin))).status, 400);
   }

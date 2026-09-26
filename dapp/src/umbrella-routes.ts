@@ -31,10 +31,12 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
       const link = new URL('/', base);
       link.searchParams.set('umbrella', id.toLowerCase());
       // Keep the nested URL (including its query) in Slush's single :url parameter.
-      const svg = await QRCode.toString('https://my.slush.app/browse/' + encodeURIComponent(link.href), { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
-      c.header('Content-Type', 'image/svg+xml');
-      c.header('Content-Disposition', `inline; filename="umbrella-${id.toLowerCase()}.svg"`);
-      return c.body(svg);
+      // Serve the displayed image as PNG too: iPhone's Save to Photos uses the
+      // image source, independently of the download link's suggested filename.
+      const png = await QRCode.toBuffer('https://my.slush.app/browse/' + encodeURIComponent(link.href), { type: 'png', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+      c.header('Content-Type', 'image/png');
+      c.header('Content-Disposition', `inline; filename="umbrella-${id.toLowerCase()}.png"`);
+      return c.body(new Uint8Array(png));
     } catch { return c.json({ error: 'Unable to generate the umbrella QR code.' }, 400); }
   });
   routes.get('/:id', async c => {

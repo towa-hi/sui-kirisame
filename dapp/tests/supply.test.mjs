@@ -64,6 +64,7 @@ test('confirmed creation shows a QR and direct link; failed creation never shows
       assert.equal(element('supply-umbrella-link').href, 'https://kirisame.example/?umbrella=' + sender);
       assert.equal(element('supply-qr').src, '/api/umbrellas/' + sender + '/qr?origin=https%3A%2F%2Fkirisame.example');
       assert.equal(element('supply-qr-download').href, element('supply-qr').src);
+      assert.equal(element('supply-qr-download').download, 'umbrella-' + sender + '.png');
       element('supply-qr').handlers.error();
       assert.equal(element('supply-qr-error').hidden, false);
     } else assert.match(element('supply-error').textContent, /Unable to confirm/);
