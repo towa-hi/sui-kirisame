@@ -5,6 +5,33 @@ module kirisame::transfer_station_tests {
     use sui::sui::SUI;
     use sui::test_scenario;
 
+    #[test]
+    fun newly_created_station_authorizes_its_initial_cap() {
+        let mut scenario = test_scenario::begin(@0xD);
+        let (admin, unused_cap, unused_station) = umbrella::station_for_testing(@0xD, scenario.ctx());
+        // Keep the helper station owned so take_shared selects the production station.
+        transfer::public_transfer(unused_cap, @0xD);
+        transfer::public_transfer(unused_station, @0xD);
+        umbrella::admin_create_station(&admin, b"Station".to_string(), b"Location".to_string(),
+            0, 0, @0xA, scenario.ctx());
+        transfer::public_transfer(admin, @0xD);
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()),
+            0, b"Test umbrella".to_string(), scenario.ctx());
+
+        scenario.next_tx(@0xA);
+        let cap = scenario.take_from_sender<StationCap>();
+        let mut station = scenario.take_shared<Station>();
+        let mut asset = scenario.take_shared<Umbrella>();
+        let clock = sui::clock::create_for_testing(scenario.ctx());
+        umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 0, &clock, scenario.ctx());
+        assert!(umbrella::station_docked_count(&station) == 1);
+        clock.destroy_for_testing();
+        scenario.return_to_sender(cap);
+        test_scenario::return_shared(station);
+        test_scenario::return_shared(asset);
+        scenario.end();
+    }
+
     // A owns the original cap, D administers, B and C are successive owners.
     fun transfer_station(mode: u8) {
         let mut scenario = test_scenario::begin(@0xD);

@@ -20,14 +20,11 @@ module kirisame::kirisame_tests {
             active_escrow,
             holder,
             current_station_id,
-            checkout_station_id,
             checkout_payout_address,
-            checkout_time_ms,
             inspection_deadline_ms,
             owner_count,
             purchase_price,
             condition_bond,
-            fee_per_ms,
         ) = umbrella::snapshot_for_testing(&umbrella);
         assert!(umbrella::color(&umbrella) == 0);
         assert!(umbrella::name(&umbrella) == &b"Test umbrella".to_string());
@@ -38,14 +35,12 @@ module kirisame::kirisame_tests {
         assert!(active_escrow == 0);
         assert!(holder.is_none());
         assert!(current_station_id.is_none());
-        assert!(checkout_station_id.is_none());
         assert!(checkout_payout_address.is_none());
-        assert!(checkout_time_ms == 0);
         assert!(inspection_deadline_ms == 0);
         assert!(owner_count == 0);
         assert!(purchase_price == 100_000_000);
         assert!(condition_bond == 30_000_000);
-        assert!(fee_per_ms == 0);
+
         let (docked, condition_amount, condition_cycle, pending) = umbrella::docking_snapshot_for_testing(&umbrella);
         assert!(!docked && pending);
         assert!(condition_amount == 30_000_000 && condition_cycle == 0);

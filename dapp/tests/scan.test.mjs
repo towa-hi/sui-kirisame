@@ -29,7 +29,7 @@ function setup({ camera, fetcher, search = '', account = null, wallet = null } =
     ZXingBrowser: { BrowserMultiFormatReader: class { async decodeFromStream(_stream, _video, callback) { decode = callback; return { stop: () => scannerStopped++ }; } } },
     account, activeWallet: wallet, AbortSignal, refreshBalance() {}, refreshInventory() {},
     location: { origin: 'https://kirisame.example', search }, URL, URLSearchParams, AbortController, setTimeout, clearTimeout,
-    fetch: fetcher || (async () => ({ ok: true, json: async () => ({ objectId: id, color: 'Black', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', feePerMs: '330', ownerCount: '0', supplier: id, conditionStatus: 'Pending' }) })),
+    fetch: fetcher || (async () => ({ ok: true, json: async () => ({ objectId: id, color: 'Black', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', ownerCount: '0', supplier: id, conditionStatus: 'Pending' }) })),
     formatSui: value => String(value) + ' MIST',
   };
   vm.runInNewContext(scanScript, context);
@@ -39,7 +39,7 @@ test('a decoded barcode stops camera, looks up once, and displays details safely
   let calls = 0;
   const app = setup({ fetcher: async url => {
     calls++; assert.equal(url, '/api/umbrellas/' + id);
-    return { ok: true, json: async () => ({ objectId: id, name: '<img onerror=alert(1)>', color: '<img onerror=alert(1)>', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', feePerMs: '330', supplier: id, ownerCount: '0', conditionStatus: 'Pending' }) };
+    return { ok: true, json: async () => ({ objectId: id, name: '<img onerror=alert(1)>', color: '<img onerror=alert(1)>', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', supplier: id, ownerCount: '0', conditionStatus: 'Pending' }) };
   } });
   await app.open(); app.scan(id); app.scan(id); await tick();
   assert.equal(calls, 1); assert.equal(app.stopped(), 1); assert.equal(app.scannerStopped(), 1);
@@ -103,7 +103,7 @@ test('scanning an app link resolves the umbrella details', async () => {
   assert.equal(app.element('scan-details').hidden, false);
 });
 
-const docked = { objectId: id, station: '0x' + '2'.repeat(64), color: 'Black', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', feePerMs: '330', ownerCount: '0', supplier: id, conditionStatus: 'Pending' };
+const docked = { objectId: id, station: '0x' + '2'.repeat(64), color: 'Black', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', ownerCount: '0', supplier: id, conditionStatus: 'Pending' };
 const buyer = { address: '0x' + '3'.repeat(64), chains: ['sui:testnet'] };
 const response = (data, status = 200) => ({ ok: status === 200, status, json: async () => data });
 test('purchase signs exact prepared transaction once and refreshes confirmed ownership', async () => {

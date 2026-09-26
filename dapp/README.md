@@ -172,13 +172,12 @@ Umbrellas now store a supplier-provided `name: String` immediately after `suppli
 in the on-chain object. `user_create_umbrella` takes `(bond, color, name, ctx)`;
 names must contain 1–256 UTF-8 bytes. Cards display `Name (Color)`.
 
-This layout and function signature require a **fresh package publication**, not an
-in-place upgrade of the package currently recorded in `Published.toml`. Before
-running this client against the new contract, set both `KIRISAME_PACKAGE_ID` and
-`KIRISAME_ORIGINAL_PACKAGE_ID` to the new publication and use a fresh inventory
-snapshot/database for it. The checked-in deployment IDs still identify the older
-contract and are not compatible with the new BCS decoder. Existing objects remain
-in their original deployment; this change does not migrate them.
+This layout and function signature use the **fresh testnet publication** recorded
+in `Published.toml`. The checked-in client defaults point to that publication.
+For a different deployment, set `KIRISAME_PACKAGE_ID` and, for an upgraded package,
+`KIRISAME_ORIGINAL_PACKAGE_ID` to its original publication. Otherwise the original
+ID defaults to the call target. Inventory rebuilds automatically when the deployment
+changes. Existing objects remain in their original deployment and are not migrated.
 
 Blank supplier names are assigned `Supplier Umbrella #1`, advancing until the
 name is unused in the database. SQLite records names from every indexed umbrella,
@@ -193,3 +192,13 @@ works with sync disabled. Keep `KIRISAME_INVENTORY_DB` on persistent storage and
 share the same database among processes that allocate names. Separate databases
 cannot coordinate reservations. The contract stores the selected name but does not
 enforce global uniqueness for transactions submitted outside this app.
+
+## Fresh contract layout cleanup
+
+The fresh publication also removes the unused `fee_per_ms`, `checkout_station_id`,
+and `checkout_time_ms` fields from Umbrella. The inspection deadline remains the
+source for timing. Condition history and per-umbrella financial terms remain stored.
+Station now stores `authorized_cap` directly, replacing the legacy dynamic-field
+fallback. Station discovery excludes revoked capabilities using this field.
+The client BCS schemas match these new layouts and do not decode the old deployment.
+Use the fresh-publication configuration described above before running this client.

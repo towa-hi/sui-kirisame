@@ -21,11 +21,11 @@ module kirisame::undock_umbrella_tests {
         };
         umbrella::user_undock_umbrella(if (wrong_station) { &mut other } else { &mut station }, &mut asset,
             coin::mint_for_testing<SUI>(payment, scenario.ctx()), cycle, &clock, scenario.ctx());
-        let (_, _, owner, pending, escrow, holder, current, checkout, payout, time, deadline, count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, owner, pending, escrow, holder, current, payout, deadline, count, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(owner == option::some(@0xA) && pending == 30_000_000 && escrow == 100_000_000);
         assert!(holder == option::some(@0xB) && current.is_none());
-        assert!(checkout == option::some(object::id(&station)) && payout == option::some(@0xC));
-        assert!(time == 1_000 && deadline == 121_000 && count == 1);
+        assert!(payout == option::some(@0xC));
+        assert!(deadline == 121_000 && count == 1);
         let (_, hold, hold_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(hold == 30_000_000 && hold_cycle == 0 && is_pending);
         if (duplicate) {
@@ -35,9 +35,9 @@ module kirisame::undock_umbrella_tests {
         clock.set_for_testing(deadline);
         umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
         umbrella::user_undock_umbrella(&mut station, &mut asset, coin::mint_for_testing<SUI>(payment, scenario.ctx()), 1, &clock, scenario.ctx());
-        let (_, _, next_owner, next_pending, next_escrow, _, _, _, _, next_time, next_deadline, next_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, next_owner, next_pending, next_escrow, _, _, _, next_deadline, next_count, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(next_owner == option::some(@0xB) && next_pending == 30_000_000 && next_escrow == 100_000_000);
-        assert!(next_count == 2 && next_time == deadline && next_deadline == deadline + 120_000);
+        assert!(next_count == 2 && next_deadline == deadline + 120_000);
         let (_, _, next_cycle, next_pending_status) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(next_cycle == 1 && next_pending_status);
         test_scenario::return_shared(asset);

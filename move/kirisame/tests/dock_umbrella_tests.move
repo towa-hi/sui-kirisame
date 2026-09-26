@@ -39,7 +39,7 @@ module kirisame::dock_umbrella_tests {
         if (duplicate) {
             umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, cycle, &clock, scenario.ctx());
         };
-        let (_, _, owner, pending, escrow, holder, current_station, _, _, _, _, owner_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, owner, pending, escrow, holder, current_station, _, _, owner_count, _, _) = umbrella::snapshot_for_testing(&asset);
         let (docked, amount, condition_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(docked && is_pending);
         assert!(current_station == option::some(object::id(&station)));

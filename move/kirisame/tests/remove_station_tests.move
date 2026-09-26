@@ -42,7 +42,7 @@ module kirisame::remove_station_tests {
         assert!(umbrella::station_is_removed(&station));
         umbrella::admin_remove_station(&admin, &mut station);
         assert!(umbrella::station_is_removed(&station));
-        let (supplier, _, owner, pending, escrow, holder, current, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&first);
+        let (supplier, _, owner, pending, escrow, holder, current, _, _, _, _, _) = umbrella::snapshot_for_testing(&first);
         assert!(supplier == @0xA && owner == option::some(@0xA));
         assert!(pending == 0 && escrow == 0 && holder.is_none() && current.is_none());
         assert!(umbrella::condition_status_for_testing(&first) == 1);

@@ -9,8 +9,8 @@ import QRCode from 'qrcode';
 const id = '0x' + '1'.repeat(64);
 const value = {
   id, supplier: id, name: 'Rain companion', color: 1, state: { Docked: true },
-  current_station_id: id, checkout_station_id: null, holder: null,
-  checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000',
+  current_station_id: id, holder: null,
+  inspection_deadline_ms: '0', purchase_price: '100000000', condition_bond: '30000000',
   active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id,
   last_condition_amount: '30000000', last_condition_cycle: '0', last_condition_status: { Pending: true },
   checkout_payout_address: null, admin_payout_address: null, owner_count: '9007199254740993',

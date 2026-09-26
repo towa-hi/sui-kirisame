@@ -8,7 +8,7 @@ export const stationBcs = bcs.struct('Station', {
   latitude_e6: bcs.u64(), longitude_e6: bcs.u64(), payout_address: bcs.Address,
   maintenance_reserve: bcs.Address, admin_payout_address: bcs.Address,
   status: bcs.enum('StationStatus', { Active: null, Removing: null, Removed: null }),
-  docked_count: bcs.u64(),
+  docked_count: bcs.u64(), authorized_cap: bcs.Address,
 });
 
 export type InventoryKind = 'stations' | 'umbrellas';

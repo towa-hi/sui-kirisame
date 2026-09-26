@@ -10,8 +10,8 @@ import QRCode from 'qrcode';
 export const umbrellaBcs = bcs.struct('Umbrella', {
   id: bcs.Address, supplier: bcs.Address, name: bcs.string(), color: bcs.u8(),
   state: bcs.enum('UmbrellaState', { Created: null, Docked: null, Held: null, Quarantined: null, Sold: null, Retired: null }),
-  current_station_id: bcs.option(bcs.Address), checkout_station_id: bcs.option(bcs.Address), holder: bcs.option(bcs.Address),
-  checkout_time_ms: bcs.u64(), inspection_deadline_ms: bcs.u64(), purchase_price: bcs.u64(), fee_per_ms: bcs.u64(), condition_bond: bcs.u64(),
+  current_station_id: bcs.option(bcs.Address), holder: bcs.option(bcs.Address),
+  inspection_deadline_ms: bcs.u64(), purchase_price: bcs.u64(), condition_bond: bcs.u64(),
   active_escrow: bcs.u64(), pending_condition: bcs.u64(), pending_condition_owner: bcs.option(bcs.Address),
   last_condition_amount: bcs.u64(), last_condition_cycle: bcs.u64(),
   last_condition_status: bcs.enum('ConditionStatus', { Pending: null, Paid: null, Forfeited: null, AwaitingReview: null, RefundApproved: null }),
@@ -57,7 +57,7 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
         color: ['Vinyl', 'Black', 'White'][data.color] ?? 'Unknown', state: data.state.$kind,
         supplier: data.supplier, station: data.current_station_id, holder: data.holder,
         purchasePrice: data.purchase_price, conditionBond: data.condition_bond,
-        feePerMs: data.fee_per_ms, ownerCount: data.owner_count,
+        ownerCount: data.owner_count,
         conditionStatus: data.last_condition_status.$kind,
       });
     } catch (error) {

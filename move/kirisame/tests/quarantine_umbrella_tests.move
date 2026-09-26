@@ -38,7 +38,7 @@ module kirisame::quarantine_umbrella_tests {
         if (duplicate) {
             umbrella::station_quarantine_umbrella(&cap, &station, &mut asset, cycle, &clock, scenario.ctx());
         };
-        let (_, _, owner, pending, escrow, holder, current_station, _, _, _, deadline, owner_count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, owner, pending, escrow, holder, current_station, _, deadline, owner_count, _, _) = umbrella::snapshot_for_testing(&asset);
         let (_, amount, condition_cycle, is_pending) = umbrella::docking_snapshot_for_testing(&asset);
         let (quarantined, forfeited) = umbrella::quarantine_snapshot_for_testing(&asset);
         assert!(quarantined && !forfeited && !is_pending);

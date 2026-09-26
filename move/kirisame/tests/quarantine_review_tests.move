@@ -56,7 +56,7 @@ module kirisame::quarantine_review_tests {
         clock.set_for_testing(18_446_744_073_709_551_615);
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         assert!(umbrella::condition_status_for_testing(&asset) == AWAITING_REVIEW);
-        let (_, _, _, pending, escrow, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, _, pending, escrow, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(pending == 30_000_000 && escrow == 0);
         test_scenario::return_shared(asset);
         scenario.return_to_sender(admin);
@@ -80,7 +80,7 @@ module kirisame::quarantine_review_tests {
         };
         assert!(umbrella::condition_status_for_testing(&asset) ==
             if (approve) { REFUND_APPROVED } else { FORFEITED });
-        let (_, _, owner, pending, escrow, holder, current, _, _, _, _, count, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, owner, pending, escrow, holder, current, _, _, count, _, _) = umbrella::snapshot_for_testing(&asset);
         let (quarantined, _) = umbrella::quarantine_snapshot_for_testing(&asset);
         let (_, amount, cycle, _) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(quarantined && holder.is_none() && current == option::some(object::id(&station)));
@@ -103,7 +103,7 @@ module kirisame::quarantine_review_tests {
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         assert!(umbrella::condition_status_for_testing(&asset) ==
             if (approve) { PAID } else { FORFEITED });
-        let (_, _, _, pending, escrow, _, _, _, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, _, pending, escrow, _, _, _, _, _, _, _) = umbrella::snapshot_for_testing(&asset);
         assert!(pending == 0 && escrow == 0);
         test_scenario::return_shared(asset);
         scenario.return_to_sender(admin);

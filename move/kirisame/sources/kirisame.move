@@ -5,7 +5,6 @@ module kirisame::umbrella {
     use sui::clock::Clock;
     use sui::coin::Coin;
     use std::string::String;
-    use sui::dynamic_field;
     use sui::event;
     
     public struct AdminCap has key, store {
@@ -17,9 +16,6 @@ module kirisame::umbrella {
         id: UID,
         station: ID,
     }
-
-    // Added lazily on transfer to preserve existing Station and StationCap layouts.
-    public struct AuthorizedStationCapKey has copy, drop, store {}
 
     public struct StationTransferred has copy, drop {
         station: ID,
@@ -53,14 +49,11 @@ module kirisame::umbrella {
         color: u8,
         state: UmbrellaState,
         current_station_id: Option<ID>,
-        checkout_station_id: Option<ID>,
         holder: Option<address>,
 
-        checkout_time_ms: u64,
         inspection_deadline_ms: u64,
 
         purchase_price: u64,
-        fee_per_ms: u64,
         condition_bond: u64,
 
         active_escrow: Balance<SUI>,
@@ -94,6 +87,7 @@ module kirisame::umbrella {
         admin_payout_address: address,
         status: StationStatus,
         docked_count: u64,
+        authorized_cap: ID,
     }
 
     const MAX_LATITUDE_E6: u64 = 180_000_000;
@@ -106,7 +100,6 @@ module kirisame::umbrella {
     const EInvalidState: u64 = 4;
     const EStaleOwnerCount: u64 = 5;
     const EInspectionOpen: u64 = 6;
-    // Abort code 7 was formerly ENoBuyback; expired returns now finalize sales.
     const EInvalidPayment: u64 = 8;
     const EInspectionClosed: u64 = 9;
     const EReviewAlreadyFinalized: u64 = 10;
@@ -121,8 +114,6 @@ module kirisame::umbrella {
     const ADMIN_PERCENT: u64 = 10;
     const PURCHASE_PRICE: u64 = 100_000_000;
     const CONDITION_BOND: u64 = 30_000_000;
-    // Retained in object layout for upgrade compatibility; pricing uses USAGE_PERIOD_MS.
-    const FEE_PER_MS: u64 = 0;
     const USAGE_PERIOD_MS: u64 = 86_400_000;
     const INSPECTION_WINDOW_MS: u64 = 120_000;
 
@@ -146,8 +137,10 @@ module kirisame::umbrella {
         assert!(latitude_e6 <= MAX_LATITUDE_E6, EInvalidLatitude);
         assert!(longitude_e6 <= MAX_LONGITUDE_E6, EInvalidLongitude);
 
+        let station_uid = object::new(ctx);
+        let cap = StationCap { id: object::new(ctx), station: station_uid.to_inner() };
         let station = Station {
-            id: object::new(ctx),
+            id: station_uid,
             display_name,
             location_name,
             latitude_e6,
@@ -157,22 +150,14 @@ module kirisame::umbrella {
             admin_payout_address: admin.payout_address,
             status: StationStatus::Active,
             docked_count: 0,
+            authorized_cap: object::id(&cap),
         };
-        let station_id = object::id(&station);
         transfer::share_object(station);
-        transfer::transfer(
-            StationCap {
-                id: object::new(ctx),
-                station: station_id,
-            },
-            payout_address,
-        );
+        transfer::transfer(cap, payout_address);
     }
 
     /// Rotate station authority and future payouts without the previous StationCap.
-    /// Legacy caps remain valid until the first transfer; afterwards only the
-    /// recorded cap is accepted by this package version. Older package versions
-    /// do not enforce this check and must be considered before deployment.
+    /// Only the station's currently recorded capability is authorized.
     public fun admin_transfer_station(
         _admin: &AdminCap,
         station: &mut Station,
@@ -182,12 +167,7 @@ module kirisame::umbrella {
         assert!(station.status == StationStatus::Active, EStationInactive);
         let cap = StationCap { id: object::new(ctx), station: object::id(station) };
         let new_cap = object::id(&cap);
-        let key = AuthorizedStationCapKey {};
-        if (dynamic_field::exists(&station.id, key)) {
-            *dynamic_field::borrow_mut<AuthorizedStationCapKey, ID>(&mut station.id, key) = new_cap;
-        } else {
-            dynamic_field::add(&mut station.id, key, new_cap);
-        };
+        station.authorized_cap = new_cap;
         let previous_payout_address = station.payout_address;
         station.payout_address = new_owner;
         event::emit(StationTransferred {
@@ -201,13 +181,7 @@ module kirisame::umbrella {
 
     fun assert_station_cap(cap: &StationCap, station: &Station) {
         assert!(cap.station == object::id(station), EWrongStation);
-        let key = AuthorizedStationCapKey {};
-        if (dynamic_field::exists(&station.id, key)) {
-            assert!(
-                object::id(cap) == *dynamic_field::borrow<AuthorizedStationCapKey, ID>(&station.id, key),
-                ERevokedStationCap,
-            );
-        };
+        assert!(object::id(cap) == station.authorized_cap, ERevokedStationCap);
     }
 
     /// Disable station operations immediately. Removal completes only after all
@@ -268,12 +242,9 @@ module kirisame::umbrella {
             color,
             state: UmbrellaState::Created,
             current_station_id: option::none(),
-            checkout_station_id: option::none(),
             holder: option::none(),
-            checkout_time_ms: 0,
             inspection_deadline_ms: 0,
             purchase_price: PURCHASE_PRICE,
-            fee_per_ms: FEE_PER_MS,
             condition_bond: CONDITION_BOND,
             active_escrow: sui::balance::zero(),
             pending_condition: bond.into_balance(),
@@ -346,10 +317,7 @@ module kirisame::umbrella {
                 umbrella.last_condition_status = ConditionStatus::Pending;
                 umbrella.holder = option::none();
             },
-            UmbrellaState::Docked => abort EInvalidState,
-            UmbrellaState::Quarantined => abort EInvalidState,
-            UmbrellaState::Sold => abort EInvalidState,
-            UmbrellaState::Retired => abort EInvalidState,
+            _ => abort EInvalidState,
         };
 
         umbrella.current_station_id = option::some(object::id(station));
@@ -368,27 +336,17 @@ module kirisame::umbrella {
     ) {
         assert!(station.status == StationStatus::Active, EStationInactive);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
-        match (umbrella.state) {
-            UmbrellaState::Docked => {
-                assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
-                assert!(payment.value() == umbrella.purchase_price, EInvalidPayment);
+        assert!(umbrella.state == UmbrellaState::Docked, EInvalidState);
+        assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
+        assert!(payment.value() == umbrella.purchase_price, EInvalidPayment);
 
-                // The prior condition hold remains pending through this inspection.
-                umbrella.active_escrow.join(payment.into_balance());
-                umbrella.holder = option::some(ctx.sender());
-                umbrella.checkout_station_id = option::some(object::id(station));
-                umbrella.checkout_payout_address = option::some(station.payout_address);
-                umbrella.admin_payout_address = option::some(station.admin_payout_address);
-                umbrella.checkout_time_ms = clock.timestamp_ms();
-                umbrella.inspection_deadline_ms = umbrella.checkout_time_ms + INSPECTION_WINDOW_MS;
-                umbrella.owner_count = umbrella.owner_count + 1;
-            },
-            UmbrellaState::Created => abort EInvalidState,
-            UmbrellaState::Held => abort EInvalidState,
-            UmbrellaState::Quarantined => abort EInvalidState,
-            UmbrellaState::Sold => abort EInvalidState,
-            UmbrellaState::Retired => abort EInvalidState,
-        };
+        // The prior condition hold remains pending through this inspection.
+        umbrella.active_escrow.join(payment.into_balance());
+        umbrella.holder = option::some(ctx.sender());
+        umbrella.checkout_payout_address = option::some(station.payout_address);
+        umbrella.admin_payout_address = option::some(station.admin_payout_address);
+        umbrella.inspection_deadline_ms = clock.timestamp_ms() + INSPECTION_WINDOW_MS;
+        umbrella.owner_count = umbrella.owner_count + 1;
 
         umbrella.current_station_id = option::none();
         umbrella.state = UmbrellaState::Held;
@@ -486,11 +444,13 @@ module kirisame::umbrella {
             return
         };
         if (umbrella.state != UmbrellaState::Held) return;
-        if (clock.timestamp_ms() < umbrella.inspection_deadline_ms) return;
-        pay_pending_condition(umbrella, ctx);
-        if (usage_fee(umbrella, clock.timestamp_ms()) < umbrella.purchase_price) return;
-
-        finalize_sale(umbrella, ctx);
+        let now = clock.timestamp_ms();
+        if (now < umbrella.inspection_deadline_ms) return;
+        if (usage_fee(umbrella, now) < umbrella.purchase_price) {
+            pay_pending_condition(umbrella, ctx);
+        } else {
+            finalize_sale(umbrella, ctx);
+        };
     }
 
     fun finalize_sale(umbrella: &mut Umbrella, ctx: &mut TxContext) {
@@ -595,8 +555,10 @@ module kirisame::umbrella {
 
     #[test_only]
     public(package) fun station_for_testing(payout_address: address, ctx: &mut TxContext): (AdminCap, StationCap, Station) {
+        let station_uid = object::new(ctx);
+        let cap = StationCap { id: object::new(ctx), station: station_uid.to_inner() };
         let station = Station {
-            id: object::new(ctx),
+            id: station_uid,
             display_name: b"Test station".to_string(),
             location_name: b"Test location".to_string(),
             latitude_e6: 0,
@@ -606,8 +568,8 @@ module kirisame::umbrella {
             admin_payout_address: @0x99,
             status: StationStatus::Active,
             docked_count: 0,
+            authorized_cap: object::id(&cap),
         };
-        let cap = StationCap { id: object::new(ctx), station: object::id(&station) };
         (AdminCap { id: object::new(ctx), payout_address: @0x99 }, cap, station)
     }
 
@@ -652,10 +614,7 @@ module kirisame::umbrella {
         u64,
         Option<address>,
         Option<ID>,
-        Option<ID>,
         Option<address>,
-        u64,
-        u64,
         u64,
         u64,
         u64,
@@ -669,14 +628,11 @@ module kirisame::umbrella {
             umbrella.active_escrow.value(),
             umbrella.holder,
             umbrella.current_station_id,
-            umbrella.checkout_station_id,
             umbrella.checkout_payout_address,
-            umbrella.checkout_time_ms,
             umbrella.inspection_deadline_ms,
             umbrella.owner_count,
             umbrella.purchase_price,
             umbrella.condition_bond,
-            umbrella.fee_per_ms,
         )
     }
 }

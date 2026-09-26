@@ -45,19 +45,19 @@ module kirisame::retire_umbrella_tests {
             if (mode != 2) umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         };
         let asset_id = object::id(&asset);
-        let (_, _, owner, _, _, _, _, checkout, payout, time, deadline, count, price, bond, rate) = umbrella::snapshot_for_testing(&asset);
+        let (_, _, owner, _, _, _, _, payout, deadline, count, price, bond) = umbrella::snapshot_for_testing(&asset);
         let status = umbrella::condition_status_for_testing(&asset);
         let (_, amount, cycle, _) = umbrella::docking_snapshot_for_testing(&asset);
         umbrella::admin_retire_umbrella(&admin, &mut asset, if (mode == 3) { 0 } else { 1 });
         assert!(umbrella::retired_for_testing(&asset) && object::id(&asset) == asset_id);
         // Sweeping a retired record is harmless and preserves the final outcome.
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
-        let (supplier, _, new_owner, pending, escrow, holder, current, new_checkout, new_payout, new_time, new_deadline, new_count, new_price, new_bond, new_rate) = umbrella::snapshot_for_testing(&asset);
+        let (supplier, _, new_owner, pending, escrow, holder, current, new_payout, new_deadline, new_count, new_price, new_bond) = umbrella::snapshot_for_testing(&asset);
         let (_, new_amount, new_cycle, _) = umbrella::docking_snapshot_for_testing(&asset);
         assert!(supplier == @0xA && new_owner == owner && pending == 0 && escrow == 0);
         assert!(holder.is_none() && current.is_none());
-        assert!(new_checkout == checkout && new_payout == payout && new_time == time && new_deadline == deadline);
-        assert!(new_count == count && new_price == price && new_bond == bond && new_rate == rate);
+        assert!(new_payout == payout && new_deadline == deadline);
+        assert!(new_count == count && new_price == price && new_bond == bond);
         assert!(new_amount == amount && new_cycle == cycle && umbrella::condition_status_for_testing(&asset) == status);
         if (mode == 4) umbrella::admin_retire_umbrella(&admin, &mut asset, 1);
         if (mode == 6) umbrella::user_undock_umbrella(&mut station, &mut asset,
@@ -92,7 +92,7 @@ module kirisame::retire_umbrella_tests {
         scenario.next_tx(@0xE);
         let replacement = scenario.take_shared<Umbrella>();
         assert!(object::id(&replacement) != asset_id);
-        let (supplier, created, owner, pending, escrow, holder, current, _, _, _, _, count, _, _, _) = umbrella::snapshot_for_testing(&replacement);
+        let (supplier, created, owner, pending, escrow, holder, current, _, _, count, _, _) = umbrella::snapshot_for_testing(&replacement);
         assert!(created && supplier == @0xE && owner == option::some(@0xE));
         assert!(pending == 30_000_000 && escrow == 0 && holder.is_none() && current.is_none() && count == 0);
         test_scenario::return_shared(replacement);

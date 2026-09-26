@@ -16,7 +16,7 @@ export async function ownedStations(sui: SuiGrpcClient, owner: string) {
       const { object } = await sui.getObject({ objectId: data.station, include: { content: true }, signal: AbortSignal.timeout(10000) });
       if (object.type !== `${normalizeSuiAddress(originalId)}::umbrella::Station`) continue;
       const station = stationBcs.parse(object.content);
-      if (station.status.$kind === 'Active') stations.push({ cap: cap.objectId, station: object.objectId, name: station.display_name });
+      if (station.status.$kind === 'Active' && station.authorized_cap === normalizeSuiAddress(cap.objectId)) stations.push({ cap: cap.objectId, station: object.objectId, name: station.display_name });
     }
     if (!page.hasNextPage) break;
     if (!page.cursor || page.cursor === cursor) throw new Error('Invalid station pagination');
