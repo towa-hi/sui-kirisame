@@ -1,3 +1,4 @@
+import { packageId } from './deployment.js';
 import { purchaseMapMarkup, purchaseMapStyles, purchaseMapScript } from './purchase-map.js';
 import { scanMarkup, scanStyles, scanScript } from './scan.js';
 import { stationMarkup } from './station.js';
@@ -37,6 +38,8 @@ export const page = /* html */ `<!doctype html>
     <style>
       * { box-sizing: border-box; }
       body {
+        display: flex;
+        flex-direction: column;
         width: 100%;
         max-width: 430px;
         margin: 0 auto;
@@ -72,6 +75,9 @@ export const page = /* html */ `<!doctype html>
       button[aria-selected="true"] { background: #fff; color: #243c32; box-shadow: 0 1px 5px #243c3214; }
       button:focus-visible { outline: 2px solid #557866; outline-offset: 2px; }
       main { width: calc(100% - 2rem); margin: 0 auto; padding: 0 0 4rem; }
+      footer { margin-top: auto; padding: 1rem 1rem 1.5rem; text-align: center; font-size: .8rem; }
+      footer a { color: #526358; text-underline-offset: .2em; }
+      footer a:focus-visible { outline: 2px solid #557866; outline-offset: 4px; }
       [role="tabpanel"][hidden] { display: none; }
       .panel-content { overflow-wrap: anywhere; }
       .user-tabs { margin-top: 1rem; }
@@ -139,6 +145,9 @@ export const page = /* html */ `<!doctype html>
           ${adminMarkup}</div>
       </section>
     </main>
+    <footer>
+      <a href="https://suiscan.xyz/testnet/object/${encodeURIComponent(packageId)}" target="_blank" rel="noopener noreferrer">Current contract · Testnet ↗</a>
+    </footer>
     ${adminOverlay}
     ${supplyOverlay}
     ${scanMarkup}

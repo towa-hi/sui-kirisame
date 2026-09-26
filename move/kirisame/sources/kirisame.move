@@ -165,6 +165,7 @@ module kirisame::umbrella {
     }
 
     public fun admin_remove_station(_admin: &AdminCap, station: &mut Station) {
+        // WARNING: the station is not completely removed until admin_retire_station_umbrella is called on all docked umbrellas
         station.status = if (station.docked_count == 0) {
             StationStatus::Removed
         } else {
@@ -178,6 +179,7 @@ module kirisame::umbrella {
         umbrella: &mut Umbrella,
         ctx: &mut TxContext,
     ) {
+        // called for each umbrella in a station that is StationStatus::Removing
         assert!(station.status == StationStatus::Removing, EStationNotRemoving);
         assert!(umbrella.state == UmbrellaState::Docked, EInvalidState);
         assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
@@ -190,15 +192,18 @@ module kirisame::umbrella {
         if (station.docked_count == 0) station.status = StationStatus::Removed;
     }
 
-    public fun station_is_removing(station: &Station): bool {
+    #[test_only]
+    public(package) fun station_is_removing(station: &Station): bool {
         station.status == StationStatus::Removing
     }
 
-    public fun station_is_removed(station: &Station): bool {
+    #[test_only]
+    public(package) fun station_is_removed(station: &Station): bool {
         station.status == StationStatus::Removed
     }
 
-    public fun station_docked_count(station: &Station): u64 { station.docked_count }
+    #[test_only]
+    public(package) fun station_docked_count(station: &Station): u64 { station.docked_count }
 
     public fun user_create_umbrella(bond: Coin<SUI>, color: u8, name: String, ctx: &mut TxContext) {
         assert!(color <= 2, EInvalidColor);
@@ -229,9 +234,11 @@ module kirisame::umbrella {
         });
     }
 
-    public fun name(umbrella: &Umbrella): &String { &umbrella.name }
+    #[test_only]
+    public(package) fun name(umbrella: &Umbrella): &String { &umbrella.name }
 
-    public fun color(umbrella: &Umbrella): u8 { umbrella.color }
+    #[test_only]
+    public(package) fun color(umbrella: &Umbrella): u8 { umbrella.color }
 
     public fun station_dock_umbrella(
         cap: &StationCap,

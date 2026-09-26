@@ -64,6 +64,13 @@ toast. Rejections and failures keep the form values; uncertain confirmations
 include a transaction link so the outcome can be checked before retrying.
 
 The default package is the testnet deployment in `move/kirisame/Published.toml`.
+Running `move/kirisame/publish-and-init.sh` automatically updates the defaults in
+`dapp/src/deployment.ts` after a successful publish (requires Python 3.11+).
+It also refreshes the root README's deployment link. The app footer reads the
+configured package ID directly, so it follows deployment updates and environment
+overrides without the script editing the page.
+Rebuild and restart the app to use the new defaults, or commit the updated
+deployment files and redeploy the hosted app.
 Set `KIRISAME_PACKAGE_ID` to change the call target. For an upgraded package,
 set `KIRISAME_ORIGINAL_PACKAGE_ID` to the original package defining `AdminCap`.
 No server signing key is needed. The wallet must own the AdminCap and have gas.
