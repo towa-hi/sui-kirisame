@@ -7,6 +7,8 @@ import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js"
 import { supplyMarkup, supplyOverlay, supplyScript } from "./supply.js";
 
 const walletAddressNames = {
+  '0x105669645016bc4c9ab09f2941974192150ce63280099580c6f93f4a8c6b92cb': 'alice-supplier',
+  '0x56962b8d9e3b695bb0b4ccfe0de7aca5de51185c485b86055e8ad78f3660ee0e': 'carl-borrower',
   '0xc5313e6b1943b8cc82f266d72ef2862a2ce32c8a6e1d609a5d4c55ba0cccb604': 'mono',
   '0xd821bffd23aadb112378600d8c02d89217d2a5f5bbe5574c1bcc887a686b5070': 'bob-borrower',
   '0xd8fd6bc0c0bc0bae5c618f1d7408e6febab749e2cf6f0afe178c9dc41fa6c282': 'station',

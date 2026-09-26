@@ -192,19 +192,6 @@ module kirisame::umbrella {
         if (station.docked_count == 0) station.status = StationStatus::Removed;
     }
 
-    #[test_only]
-    public(package) fun station_is_removing(station: &Station): bool {
-        station.status == StationStatus::Removing
-    }
-
-    #[test_only]
-    public(package) fun station_is_removed(station: &Station): bool {
-        station.status == StationStatus::Removed
-    }
-
-    #[test_only]
-    public(package) fun station_docked_count(station: &Station): u64 { station.docked_count }
-
     public fun user_create_umbrella(bond: Coin<SUI>, color: u8, name: String, ctx: &mut TxContext) {
         assert!(color <= 2, EInvalidColor);
         assert!(name.length() > 0 && name.length() <= 256, EInvalidName);
@@ -233,12 +220,6 @@ module kirisame::umbrella {
             owner_count: 0,
         });
     }
-
-    #[test_only]
-    public(package) fun name(umbrella: &Umbrella): &String { &umbrella.name }
-
-    #[test_only]
-    public(package) fun color(umbrella: &Umbrella): u8 { umbrella.color }
 
     public fun station_dock_umbrella(
         cap: &StationCap,
@@ -435,6 +416,58 @@ module kirisame::umbrella {
         (((umbrella.purchase_price as u128) * (elapsed as u128) / (USAGE_PERIOD_MS as u128)) as u64)
     }
 
+    fun pay_admin_share(umbrella: &mut Umbrella, revenue: u64, ctx: &mut TxContext): u64 {
+        let amount = share(revenue, ADMIN_PERCENT);
+        if (amount > 0) {
+            pay(&mut umbrella.active_escrow, amount, *umbrella.admin_payout_address.borrow(), ctx);
+        };
+        revenue - amount
+    }
+
+    // Split the multiplication to avoid overflow while rounding down.
+    fun share(amount: u64, percent: u64): u64 {
+        (amount / 100) * percent + (amount % 100) * percent / 100
+    }
+
+    fun pay(balance: &mut Balance<SUI>, amount: u64, recipient: address, ctx: &mut TxContext) {
+        if (amount > 0) {
+            transfer::public_transfer(balance.split(amount).into_coin(ctx), recipient);
+        };
+    }
+
+    fun pay_pending_condition(umbrella: &mut Umbrella, ctx: &mut TxContext) {
+        if (umbrella.last_condition_status == ConditionStatus::Pending ||
+            umbrella.last_condition_status == ConditionStatus::RefundApproved) {
+            let amount = umbrella.pending_condition.value();
+            pay(
+                &mut umbrella.pending_condition,
+                amount,
+                *umbrella.pending_condition_owner.borrow(),
+                ctx,
+            );
+            umbrella.last_condition_status = ConditionStatus::Paid;
+        };
+    }
+
+    #[test_only]
+    public(package) fun station_is_removing(station: &Station): bool {
+        station.status == StationStatus::Removing
+    }
+
+    #[test_only]
+    public(package) fun station_is_removed(station: &Station): bool {
+        station.status == StationStatus::Removed
+    }
+
+    #[test_only]
+    public(package) fun station_docked_count(station: &Station): u64 { station.docked_count }
+
+    #[test_only]
+    public(package) fun name(umbrella: &Umbrella): &String { &umbrella.name }
+
+    #[test_only]
+    public(package) fun color(umbrella: &Umbrella): u8 { umbrella.color }
+
     #[test_only]
     public(package) fun sale_snapshot_for_testing(umbrella: &Umbrella): (bool, bool, u64, u64) {
         (
@@ -467,39 +500,6 @@ module kirisame::umbrella {
             ConditionStatus::AwaitingReview => 3,
             ConditionStatus::RefundApproved => 4,
         }
-    }
-
-    fun pay_admin_share(umbrella: &mut Umbrella, revenue: u64, ctx: &mut TxContext): u64 {
-        let amount = share(revenue, ADMIN_PERCENT);
-        if (amount > 0) {
-            pay(&mut umbrella.active_escrow, amount, *umbrella.admin_payout_address.borrow(), ctx);
-        };
-        revenue - amount
-    }
-
-    // Split the multiplication to avoid overflow while rounding down.
-    fun share(amount: u64, percent: u64): u64 {
-        (amount / 100) * percent + (amount % 100) * percent / 100
-    }
-
-    fun pay(balance: &mut Balance<SUI>, amount: u64, recipient: address, ctx: &mut TxContext) {
-        if (amount > 0) {
-            transfer::public_transfer(balance.split(amount).into_coin(ctx), recipient);
-        };
-    }
-
-    fun pay_pending_condition(umbrella: &mut Umbrella, ctx: &mut TxContext) {
-        if (umbrella.last_condition_status == ConditionStatus::Pending ||
-            umbrella.last_condition_status == ConditionStatus::RefundApproved) {
-            let amount = umbrella.pending_condition.value();
-            pay(
-                &mut umbrella.pending_condition,
-                amount,
-                *umbrella.pending_condition_owner.borrow(),
-                ctx,
-            );
-            umbrella.last_condition_status = ConditionStatus::Paid;
-        };
     }
 
     #[test_only]
