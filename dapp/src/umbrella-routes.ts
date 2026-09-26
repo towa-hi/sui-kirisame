@@ -30,7 +30,8 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
       if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin || origin.length > 256) throw new Error('Invalid origin');
       const link = new URL('/', base);
       link.searchParams.set('umbrella', id.toLowerCase());
-      const svg = await QRCode.toString('https://my.slush.app/browse/' + link.href, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+      // Keep the nested URL (including its query) in Slush's single :url parameter.
+      const svg = await QRCode.toString('https://my.slush.app/browse/' + encodeURIComponent(link.href), { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
       c.header('Content-Type', 'image/svg+xml');
       c.header('Content-Disposition', `inline; filename="umbrella-${id.toLowerCase()}.svg"`);
       return c.body(svg);

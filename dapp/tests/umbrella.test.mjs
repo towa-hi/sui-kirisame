@@ -58,7 +58,9 @@ test('QR encodes the Slush browse umbrella link with a quiet zone and download f
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /image\/svg\+xml/);
   assert.match(response.headers.get('content-disposition'), /umbrella-0x1+\.svg/);
-  const expected = await QRCode.toString('https://my.slush.app/browse/https://kirisame.example/?umbrella=' + id, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+  const destination = 'https://kirisame.example/?umbrella=' + id;
+  const slushLink = 'https://my.slush.app/browse/' + encodeURIComponent(destination);
+  const expected = await QRCode.toString(slushLink, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
   assert.equal(await response.text(), expected);
   for (const origin of ['javascript:alert(1)', 'https://evil.example/path', 'https://user:pass@example.com']) {
     assert.equal((await routes.request('/' + id + '/qr?origin=' + encodeURIComponent(origin))).status, 400);

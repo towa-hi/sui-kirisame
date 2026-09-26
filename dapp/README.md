@@ -90,7 +90,7 @@ is available. Success is shown only after chain confirmation.
 
 In **User → Purchase**, **Scan umbrella** opens a camera modal, preferring the rear camera. QR codes and supported 1D/2D barcodes are decoded locally with a bundled ZXing reader; camera images are not uploaded. Once decoded, the camera stops and the app looks up the object on Sui testnet. No wallet connection is needed.
 
-New QR labels encode `https://my.slush.app/browse/https://<app-host>/?umbrella=<id>` to open the umbrella in Slush. See [Slush deep linking](https://sdk.mystenlabs.com/slush-wallet/deep-linking). When scanned inside Kirisame, the same label supplies only the object ID for a local API lookup; the scanner never navigates to or fetches the scanned URL.
+New QR labels encode `https://my.slush.app/browse/` followed by `encodeURIComponent(appUrl)` to open the umbrella in Slush. The entire destination, including `?umbrella=<id>`, stays inside the single browse route parameter rather than becoming Slush's own query string. See [Slush deep linking](https://sdk.mystenlabs.com/slush-wallet/deep-linking). When scanned inside Kirisame, the same label supplies only the object ID for a local API lookup; the scanner never navigates to or fetches the scanned URL.
 
 Labels can also contain a full `0x` + 64 hexadecimal-character object ID, a `https://suiscan.xyz/testnet/object/<id>` link, or an HTTP(S) app URL with `?umbrella=<id>`. Existing labels work across app hosts, and Slush wrappers accept both literal and URL-encoded app URLs. Arbitrary product numbers have no mapping to Sui objects. A manual ID entry and **Scan again** are available for retries or unsupported cameras. Camera access requires HTTPS (or localhost) and browser permission.
 
