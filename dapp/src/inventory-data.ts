@@ -26,6 +26,6 @@ export function inventoryItem(kind: InventoryKind, node: InventoryNode) {
   const data = umbrellaBcs.parse(bytes);
   return { objectId: node.address, name: data.name, color: ['Vinyl', 'Black', 'White'][data.color] ?? 'Unknown',
     status: data.state.$kind, station: data.current_station_id, holder: data.holder, supplier: data.supplier,
-    ownerCount: data.owner_count, purchasePrice: data.purchase_price, conditionBond: data.condition_bond,
+    inspectionDeadlineMs: data.inspection_deadline_ms, ownerCount: data.owner_count, purchasePrice: data.purchase_price, conditionBond: data.condition_bond,
     activeEscrow: data.active_escrow, pendingCondition: data.pending_condition, conditionStatus: data.last_condition_status.$kind };
 }

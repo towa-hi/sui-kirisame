@@ -32,6 +32,7 @@ test('umbrella inventory decodes lifecycle and escrow fields', async () => {
   assert.equal(data.items[0].name, 'Rain companion');
   assert.equal(data.items[0].status, 'Quarantined');
   assert.equal(data.items[0].conditionStatus, 'AwaitingReview');
+  assert.equal(data.items[0].inspectionDeadlineMs, '0');
   assert.equal(data.items[0].pendingCondition, '30000000');
   assert.equal(data.items[0].ownerCount, '9007199254740993');
   assert.equal(data.nextCursor, null);

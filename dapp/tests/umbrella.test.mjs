@@ -28,6 +28,7 @@ test('lookup decodes contract data without losing integer precision', async () =
   assert.equal(data.name, 'Rain companion');
   assert.equal(data.color, 'Black'); assert.equal(data.state, 'Docked');
   assert.equal(data.station, id); assert.equal(data.holder, null);
+  assert.equal(data.inspectionDeadlineMs, '0');
   assert.equal(data.purchasePrice, '100000000'); assert.equal(data.ownerCount, '9007199254740993');
 });
 test('invalid scan IDs never reach the chain', async () => {

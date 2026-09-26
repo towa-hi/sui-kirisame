@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { InventoryStore } from '../dist/inventory-store.js';
 import { InventorySync, sseMessages } from '../dist/inventory-sync.js';
 import { inventoryRoutes, stationBcs } from '../dist/inventory-routes.js';
@@ -202,5 +203,24 @@ test('default names skip retired and custom names and survive deletion, rebuild 
       assert.equal(other.reserveUmbrellaName(''), 'Supplier Umbrella #5');
       assert.equal(db.reserveUmbrellaName(''), 'Supplier Umbrella #6');
     } finally { other.close(); }
+  } finally { db.close(); rmSync(directory, { recursive: true }); }
+});
+
+test('legacy inventory cache is rebuilt when checkout timing is missing', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'kirisame-timing-'));
+  const path = join(directory, 'inventory.sqlite');
+  const legacy = new DatabaseSync(path);
+  legacy.exec(`CREATE TABLE inventory (id TEXT PRIMARY KEY, version TEXT NOT NULL, kind TEXT, item TEXT);
+    CREATE TABLE umbrella_names (name TEXT PRIMARY KEY);
+    CREATE TABLE sync_state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);`);
+  legacy.prepare('INSERT INTO inventory VALUES (?, ?, ?, ?)').run(id, '1', 'umbrellas', JSON.stringify({ name: 'Supplier Umbrella #9', status: 'Held' }));
+  legacy.prepare('INSERT INTO sync_state VALUES (1, ?)').run(JSON.stringify(state()));
+  legacy.close();
+  const db = new InventoryStore(path);
+  try {
+    assert.deepEqual(db.list('umbrellas', null).items, []);
+    assert.equal(db.state(), undefined);
+    assert.equal(db.reserveUmbrellaName(''), 'Supplier Umbrella #1');
+    assert.equal(db.db.prepare('SELECT 1 FROM umbrella_names WHERE name=?').get('Supplier Umbrella #9') !== undefined, true);
   } finally { db.close(); rmSync(directory, { recursive: true }); }
 });

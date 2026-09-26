@@ -56,7 +56,7 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
         objectId: object.objectId, name: data.name, network: 'testnet',
         color: ['Vinyl', 'Black', 'White'][data.color] ?? 'Unknown', state: data.state.$kind,
         supplier: data.supplier, station: data.current_station_id, holder: data.holder,
-        purchasePrice: data.purchase_price, conditionBond: data.condition_bond,
+        inspectionDeadlineMs: data.inspection_deadline_ms, purchasePrice: data.purchase_price, conditionBond: data.condition_bond,
         ownerCount: data.owner_count,
         conditionStatus: data.last_condition_status.$kind,
       });

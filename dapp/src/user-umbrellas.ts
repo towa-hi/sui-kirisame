@@ -35,15 +35,36 @@ export const userUmbrellasStyles = /* css */ `
   .user-umbrella-badge[data-status="Docked"], .user-umbrella-badge[data-status="Held"] { background: #e4efe6; color: #315e40; }
   .user-umbrella-badge[data-status="Quarantined"] { background: #fff0d5; color: #805614; }
   .user-umbrella-card p { margin: .45rem 0 0; color: #526358; font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; }
+  .held-umbrella-timer { padding: .55rem .65rem; border-radius: .5rem; background: #edf4ee; color: #315e40 !important; font-variant-numeric: tabular-nums; }
   .user-umbrella-card a { color: #315e40; text-underline-offset: 2px; }
 `;
 
 export const userUmbrellasScript = /* js */ `
   const userUmbrellaViews = ['purchase', 'supply'];
   const deactivatedUmbrellaStates = new Set(['Sold', 'Retired']);
+  const umbrellaUsagePeriodMs = 86400000n;
   let userUmbrellas = new Map(), userUmbrellasAddress = '', userUmbrellasLoaded = false, userUmbrellasPending = false, userUmbrellasError = '';
 
-  function userUmbrellaCard(item) {
+  function heldUmbrellaTimerText(item, now = Date.now()) {
+    if (!/^[0-9]+$/.test(item.inspectionDeadlineMs || '') || !/^[0-9]+$/.test(item.purchasePrice || '')) return 'Usage timing unavailable · Refresh to try again.';
+    const elapsed = BigInt(Math.max(0, Math.trunc(now))) - BigInt(item.inspectionDeadlineMs);
+    if (elapsed <= 0n) return 'Refund Window Active · Estimated cost: 0 SUI';
+    const chargedMs = elapsed < umbrellaUsagePeriodMs ? elapsed : umbrellaUsagePeriodMs;
+    const cost = BigInt(item.purchasePrice) * chargedMs / umbrellaUsagePeriodMs;
+    const totalSeconds = elapsed / 1000n;
+    const days = totalSeconds / 86400n;
+    const hours = totalSeconds % 86400n / 3600n;
+    const minutes = totalSeconds % 3600n / 60n;
+    const seconds = totalSeconds % 60n;
+    const clock = [hours, minutes, seconds].map(value => value.toString().padStart(2, '0')).join(':');
+    return 'Time since refund window: ' + (days ? days + 'd ' : '') + clock + ' · Estimated cost: ' + formatSui(cost);
+  }
+
+  function updateHeldUmbrellaTimers(now = Date.now()) {
+    for (const timer of document.querySelectorAll('.held-umbrella-timer')) timer.textContent = heldUmbrellaTimerText(timer.dataset, now);
+  }
+
+  function userUmbrellaCard(item, kind = 'purchase') {
     const card = document.createElement('li');
     card.className = 'user-umbrella-card';
     const heading = document.createElement('div');
@@ -56,14 +77,23 @@ export const userUmbrellasScript = /* js */ `
     badge.textContent = item.status;
     heading.append(title, badge);
     const summary = document.createElement('p');
-    summary.textContent = item.status === 'Held' ? 'Currently checked out to you.'
+    summary.textContent = item.status === 'Held' ? (kind === 'purchase' ? 'Currently checked out to you.' : 'Currently checked out.')
       : item.station ? 'Station: ' + item.station : 'Not currently at a station.';
     const link = document.createElement('a');
     const url = new URL('/', location.origin);
     url.searchParams.set('umbrella', item.objectId);
     link.href = url.href;
     link.textContent = 'Open umbrella';
-    card.append(heading, summary, link);
+    card.append(heading, summary);
+    if (item.status === 'Held') {
+      const timer = document.createElement('p');
+      timer.className = 'held-umbrella-timer';
+      timer.dataset.inspectionDeadlineMs = item.inspectionDeadlineMs;
+      timer.dataset.purchasePrice = item.purchasePrice;
+      timer.textContent = heldUmbrellaTimerText(item);
+      card.append(timer);
+    }
+    card.append(link);
     return card;
   }
 
@@ -90,7 +120,7 @@ export const userUmbrellasScript = /* js */ `
       });
       const hidden = matches.filter(item => deactivatedUmbrellaStates.has(item.status)).length;
       const visible = checkbox.checked ? matches : matches.filter(item => !deactivatedUmbrellaStates.has(item.status));
-      list.replaceChildren(...visible.map(userUmbrellaCard));
+      list.replaceChildren(...visible.map(item => userUmbrellaCard(item, kind)));
       document.getElementById(kind + '-umbrellas-count').textContent = '(' + visible.length + ')';
       status.dataset.error = String(Boolean(userUmbrellasError));
       if (userUmbrellasPending) status.textContent = 'Loading your umbrellas…';
@@ -146,4 +176,5 @@ export const userUmbrellasScript = /* js */ `
       if (address) void loadUserUmbrellas();
     }
   });
+  setInterval(updateHeldUmbrellaTimers, 1000);
 `;

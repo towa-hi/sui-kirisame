@@ -19,6 +19,11 @@ export class InventoryStore {
       CREATE TABLE IF NOT EXISTS sync_state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);`);
     this.db.exec(`INSERT OR IGNORE INTO umbrella_names SELECT json_extract(item, '$.name') FROM inventory
       WHERE kind='umbrellas' AND json_extract(item, '$.name') IS NOT NULL;`);
+    // Rebuild caches written before checkout timing was included in inventory JSON.
+    // Reserved names remain durable so a rebuild cannot reuse an old umbrella name.
+    const staleUmbrellas = this.db.prepare(`SELECT 1 FROM inventory WHERE kind='umbrellas' AND item IS NOT NULL
+      AND json_type(item, '$.inspectionDeadlineMs') IS NULL LIMIT 1`).get();
+    if (staleUmbrellas) this.db.exec('DELETE FROM inventory; DELETE FROM sync_state;');
   }
   nextUmbrellaName(): string {
     let number = 1;

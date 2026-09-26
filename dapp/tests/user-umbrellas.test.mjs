@@ -22,10 +22,14 @@ function setup(fetcher = async () => Response.json({ items: [], nextCursor: null
     return elements.get(id);
   };
   const context = {
-    document: { getElementById: element, createElement: node },
+    document: { getElementById: element, createElement: node, querySelectorAll: () => [] },
     window: { addEventListener(event, handler) { this[event] = handler; } },
     account: { address: wallet }, location: { origin: 'https://kirisame.example' },
-    URL, AbortSignal, encodeURIComponent, fetch: fetcher,
+    URL, AbortSignal, encodeURIComponent, fetch: fetcher, setInterval: () => 0,
+    formatSui: mist => {
+      const amount = BigInt(mist), fraction = (amount % 1000000000n).toString().padStart(9, '0').replace(/0+$/, '');
+      return (amount / 1000000000n).toString() + (fraction ? '.' + fraction : '') + ' SUI';
+    },
   };
   vm.createContext(context);
   vm.runInContext(userUmbrellasScript, context);
@@ -35,7 +39,7 @@ function setup(fetcher = async () => Response.json({ items: [], nextCursor: null
 test('wallet lists separate rented and supplied umbrellas and hide deactivated items by default', () => {
   const app = setup();
   app.context.fixtures = [
-    { objectId: 'held', name: '<Held>', color: 'Black', status: 'Held', holder: wallet, supplier: other, station: null },
+    { objectId: 'held', name: '<Held>', color: 'Black', status: 'Held', holder: wallet, supplier: other, station: null, inspectionDeadlineMs: '1000000', purchasePrice: '100000000' },
     { objectId: 'sold', name: 'Sold', color: 'White', status: 'Sold', holder: wallet, supplier: wallet, station: null },
     { objectId: 'docked', name: 'Docked', color: 'Vinyl', status: 'Docked', holder: null, supplier: wallet, station: other },
     { objectId: 'unrelated', name: 'Other', color: 'Black', status: 'Held', holder: other, supplier: other, station: null },
@@ -52,6 +56,16 @@ test('wallet lists separate rented and supplied umbrellas and hide deactivated i
   app.element('purchase-umbrellas-deactivated').handlers.change();
   assert.equal(app.element('purchase-umbrellas-list').children.length, 2);
   assert.equal(app.element('supply-umbrellas-list').children.length, 1);
+});
+
+test('held umbrella timer follows the on-chain refund deadline and usage-fee formula', () => {
+  const app = setup();
+  app.context.item = { inspectionDeadlineMs: '1000000', purchasePrice: '100000000' };
+  assert.equal(vm.runInContext('heldUmbrellaTimerText(item, 999999)', app.context), 'Refund Window Active · Estimated cost: 0 SUI');
+  assert.equal(vm.runInContext('heldUmbrellaTimerText(item, 1000000)', app.context), 'Refund Window Active · Estimated cost: 0 SUI');
+  assert.equal(vm.runInContext('heldUmbrellaTimerText(item, 44200000)', app.context), 'Time since refund window: 12:00:00 · Estimated cost: 0.05 SUI');
+  assert.equal(vm.runInContext('heldUmbrellaTimerText(item, 87400000)', app.context), 'Time since refund window: 1d 00:00:00 · Estimated cost: 0.1 SUI');
+  assert.equal(vm.runInContext('heldUmbrellaTimerText(item, 173800000)', app.context), 'Time since refund window: 2d 00:00:00 · Estimated cost: 0.1 SUI');
 });
 
 test('wallet umbrella loading follows all inventory pages', async () => {
