@@ -52,7 +52,7 @@ export function adminRoutes(sui: SuiGrpcClient, role: 'admin' | 'station' = 'adm
       // Move also enforces capability ownership, station matching and lifecycle rules.
       for (const field of action.fields) {
         const value = values[field.name];
-        args.push(field.name === 'payout_address' ? tx.pure.address(normalizeSuiAddress(String(value))) : field.kind === 'object' ? tx.object(normalizeSuiAddress(String(value))) : field.kind === 'integer' ? tx.pure.u64(String(value)) : field.kind === 'boolean' ? tx.pure.bool(Boolean(value)) : tx.pure.string(String(value)));
+        args.push((field.name === 'payout_address' || field.name === 'new_owner') ? tx.pure.address(normalizeSuiAddress(String(value))) : field.kind === 'object' ? tx.object(normalizeSuiAddress(String(value))) : field.kind === 'integer' ? tx.pure.u64(String(value)) : field.kind === 'boolean' ? tx.pure.bool(Boolean(value)) : tx.pure.string(String(value)));
       }
       if (role === 'station' || action.id === 'admin_settle_pending_payments') args.push(tx.object('0x6'));
       tx.moveCall({ target: `${packageId}::umbrella::${action.id}`, arguments: args });

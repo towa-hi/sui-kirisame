@@ -64,3 +64,24 @@ test('confirmation returns only newly created umbrellas from this deployment', a
   const response = await routes.request('/transactions/11111111111111111111111111111111');
   assert.deepEqual((await response.json()).umbrellaIds, [sender]);
 });
+
+test('station transfer encodes the new owner as a pure address and needs only AdminCap', async () => {
+  const action = adminActions.find(action => action.id === 'admin_transfer_station');
+  const routes = adminRoutes({ listOwnedObjects: async options => {
+    assert.equal(options.type, `${originalId}::umbrella::AdminCap`);
+    return { objects: [{ objectId: cap }] };
+  } });
+  const response = await request(routes, action, { station: '0x3', new_owner: sender });
+  assert.equal(response.status, 200);
+  const tx = JSON.parse((await response.json()).transaction);
+  assert.equal(tx.commands[0].MoveCall.function, 'admin_transfer_station');
+  assert.equal(tx.inputs.length, 3);
+  assert.equal(tx.inputs[0].UnresolvedObject.objectId, cap);
+  assert.equal(tx.inputs[1].UnresolvedObject.objectId, '0x' + '3'.padStart(64, '0'));
+  assert.equal(tx.inputs[2].Pure.bytes, Buffer.from(sender.slice(2), 'hex').toString('base64'));
+  for (const new_owner of ['', 'not-an-address', '0x' + '1'.repeat(65)]) {
+    assert.equal((await request(routes, action, { station: '0x3', new_owner })).status, 400);
+  }
+  const unauthorized = adminRoutes({ listOwnedObjects: async () => ({ objects: [] }) });
+  assert.equal((await request(unauthorized, action)).status, 403);
+});

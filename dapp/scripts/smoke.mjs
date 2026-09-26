@@ -5,7 +5,7 @@ import { setTimeout } from "node:timers/promises";
 const port = "13001";
 const server = spawn(process.execPath, ["dist/index.js"], {
   cwd: new URL("../", import.meta.url),
-  env: { ...process.env, PORT: port, NODE_ENV: "production" },
+  env: { ...process.env, PORT: port, KIRISAME_INVENTORY_SYNC: 'false', NODE_ENV: "production" },
   stdio: ["ignore", "pipe", "inherit"],
 });
 const exited = new Promise((resolve) => server.once("exit", resolve));

@@ -1,3 +1,7 @@
+import { InventoryStore } from './inventory-store.js';
+import { InventorySync } from './inventory-sync.js';
+import { originalId, packageId } from './deployment.js';
+import { resolve } from 'node:path';
 import { inventoryRoutes } from './inventory-routes.js';
 import { purchaseRoutes } from './purchase-routes.js';
 import { readFile } from 'node:fs/promises';
@@ -26,7 +30,13 @@ app.get("/api/balance/:address", async (c) => {
   }
 });
 
-app.route("/api/inventory", inventoryRoutes());
+const inventory = process.env.KIRISAME_INVENTORY_SYNC === 'false' ? undefined
+  : new InventoryStore(process.env.KIRISAME_INVENTORY_DB || resolve('data/inventory.sqlite'));
+const syncAbort = new AbortController();
+const syncTask = inventory ? new InventorySync(inventory,
+  process.env.KIRISAME_GRAPHQL_URL || 'https://graphql.testnet.sui.io/graphql', originalId, packageId,
+  fetch, process.env.KIRISAME_GRAPHQL_SUBSCRIPTIONS_URL).run(syncAbort.signal) : Promise.resolve();
+app.route("/api/inventory", inventoryRoutes(fetch, inventory));
 app.route("/api/admin", adminRoutes(sui));
 app.route("/api/station", adminRoutes(sui, "station"));
 app.route("/api/supply", supplyRoutes());
@@ -47,6 +57,14 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("PORT must be an integer between 1 and 65535.");
 }
 
-serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+const server = serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
   console.log(`Kirisame dapp listening on http://localhost:${info.port}`);
 });
+
+for (const event of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(event, () => {
+    syncAbort.abort();
+    server.close();
+    void syncTask.finally(() => inventory?.close());
+  });
+}

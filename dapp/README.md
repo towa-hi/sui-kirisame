@@ -2,7 +2,7 @@
 
 A Node server using Hono and TypeScript, following the old repository's station server setup.
 
-Requires Node.js 20 or newer. From this directory:
+Requires Node.js 22.22.0 or newer (uses the built-in SQLite module). From this directory:
 
 ```sh
 npm ci
@@ -108,12 +108,51 @@ Cards include object links, lifecycle status, station inventory/location, and um
 custody, checkout count, and escrow/condition balances. No wallet is needed to read
 inventory. Confirmed admin, station, and supply transactions trigger a refresh.
 
-`GET /api/inventory/stations` and `GET /api/inventory/umbrellas` accept an optional
-`cursor` query parameter and return `{ items, nextCursor }`. They query the configured
-original package through Sui's testnet GraphQL indexer; newly created or updated objects
-may take time to appear. `KIRISAME_GRAPHQL_URL` overrides the default testnet endpoint.
+`GET /api/inventory/stations` and `GET /api/inventory/umbrellas` retain the same
+`cursor` parameter and `{ items, nextCursor }` response. The frontend is unchanged.
+The server now maintains a rebuildable SQLite inventory read model:
+
+- Bootstrap both object types at the same GraphQL checkpoint, including every page.
+- Discover published package versions and subscribe to each `::umbrella` transaction
+  feed over POST/SSE at `/graphql/subscriptions`. No contract events are required.
+- Decode exact transaction output BCS with the existing serializers. Apply all relevant
+  object-change pages and the package's resume cursor in one SQLite transaction.
+- Use object versions and deletion tombstones to tolerate duplicate delivery and
+  out-of-order arrivals across package streams without reverting newer state.
+- Resume recent databases from saved cursors, and rebuild from a fresh snapshot after
+  extended downtime, deployment changes, or repeated failures. Refresh the snapshot
+  and package list every 20 minutes to keep recovery within recent data retention.
+
+While startup or reconnect catch-up is in progress, new inventory requests use the
+original GraphQL query. Existing upstream pagination cursors continue using GraphQL;
+local pagination cursors stay local and return the existing 502 error if sync is not
+ready. Local cursors use object-ID ordering; pages reflect current indexed state,
+so a multi-page browse is not a frozen snapshot. Purchases, scans, capability checks,
+and transaction preparation continue reading Sui directly. The database is eventually
+consistent with Sui; only each local database update is atomic.
+
+Configuration:
+
+| Variable | Default / purpose |
+| --- | --- |
+| `KIRISAME_INVENTORY_DB` | `data/inventory.sqlite` relative to the server working directory |
+| `KIRISAME_INVENTORY_SYNC` | Set to `false` to use only the original GraphQL inventory path |
+| `KIRISAME_GRAPHQL_URL` | `https://graphql.testnet.sui.io/graphql` |
+| `KIRISAME_GRAPHQL_SUBSCRIPTIONS_URL` | GraphQL URL with `/subscriptions` appended; override for providers with a different route |
+
+The existing free Render service has ephemeral storage and can sleep. Its SQLite file
+is a disposable cache: loss of the file causes a fresh chain snapshot, with GraphQL
+serving inventory during recovery. For durable storage, point the database path at a
+persistent disk on a compatible hosting plan. Run one server process per database file;
+separate replicas should use separate caches. This implementation is an inventory read
+model, not a durable audit log or a worker for irreversible side effects.
+
 The shared deployment settings in `src/deployment.ts` apply to inventory, scans, and
-transaction construction. Keep the Station and Umbrella BCS layouts in sync with Move.
+transaction construction. Package versions are rediscovered on reconnect and during
+periodic rebuilds; restart after an upgrade to pick up new versions immediately.
+Keep the Station and Umbrella BCS layouts in sync with Move. Readiness and retries are
+logged; `/health` keeps its existing liveness response. Unit tests cover rollback,
+replay, restart persistence, pagination, SSE framing, and the unchanged API responses.
 
 ### Docking by QR code
 

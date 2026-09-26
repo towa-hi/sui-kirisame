@@ -15,6 +15,7 @@ export const adminActions = [
     { name: 'longitude_e6', label: 'Encoded longitude (0–360,000,000)', kind: 'integer', max: '360000000' },
     objectField('payout_address', 'Station wallet address (receives payouts and station access)'),
   ] },
+  { id: 'admin_transfer_station', title: 'Transfer station', description: 'Give station access and future payouts to a new wallet. Existing checkouts keep their recorded payout address.', fields: [station, objectField('new_owner', 'New owner wallet address (receives payouts and station access)')] },
   { id: 'admin_remove_station', title: 'Remove station', description: 'Stop station operations. Docked umbrellas must be retired to finish removal.', fields: [station] },
   { id: 'admin_retire_station_umbrella', title: 'Retire station umbrella', description: 'Scan the umbrella QR code to retire a docked umbrella at a station being removed and refund its pending hold.', fields: [station, umbrella] },
   { id: 'admin_review_quarantined_umbrella', title: 'Review quarantined umbrella', description: 'Scan the umbrella QR code to make a final refund decision for a quarantined umbrella.', fields: [station, umbrella, ownerCount, { name: 'approve_refund', label: 'Refund decision', kind: 'boolean' }] },

@@ -5,6 +5,8 @@ module kirisame::umbrella {
     use sui::clock::Clock;
     use sui::coin::Coin;
     use std::string::String;
+    use sui::dynamic_field;
+    use sui::event;
     
     public struct AdminCap has key, store {
         id: UID,
@@ -14,6 +16,16 @@ module kirisame::umbrella {
     public struct StationCap has key, store {
         id: UID,
         station: ID,
+    }
+
+    // Added lazily on transfer to preserve existing Station and StationCap layouts.
+    public struct AuthorizedStationCapKey has copy, drop, store {}
+
+    public struct StationTransferred has copy, drop {
+        station: ID,
+        previous_payout_address: address,
+        new_owner: address,
+        new_cap: ID,
     }
 
     public enum UmbrellaState has copy, drop, store {
@@ -101,6 +113,7 @@ module kirisame::umbrella {
     const EStationInactive: u64 = 12;
     const EStationNotRemoving: u64 = 13;
     const EInvalidColor: u64 = 14;
+    const ERevokedStationCap: u64 = 15;
 
     /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const ADMIN_PERCENT: u64 = 10;
@@ -152,6 +165,47 @@ module kirisame::umbrella {
             },
             payout_address,
         );
+    }
+
+    /// Rotate station authority and future payouts without the previous StationCap.
+    /// Legacy caps remain valid until the first transfer; afterwards only the
+    /// recorded cap is accepted by this package version. Older package versions
+    /// do not enforce this check and must be considered before deployment.
+    public fun admin_transfer_station(
+        _admin: &AdminCap,
+        station: &mut Station,
+        new_owner: address,
+        ctx: &mut TxContext,
+    ) {
+        assert!(station.status == StationStatus::Active, EStationInactive);
+        let cap = StationCap { id: object::new(ctx), station: object::id(station) };
+        let new_cap = object::id(&cap);
+        let key = AuthorizedStationCapKey {};
+        if (dynamic_field::exists(&station.id, key)) {
+            *dynamic_field::borrow_mut<AuthorizedStationCapKey, ID>(&mut station.id, key) = new_cap;
+        } else {
+            dynamic_field::add(&mut station.id, key, new_cap);
+        };
+        let previous_payout_address = station.payout_address;
+        station.payout_address = new_owner;
+        event::emit(StationTransferred {
+            station: object::id(station),
+            previous_payout_address,
+            new_owner,
+            new_cap,
+        });
+        transfer::transfer(cap, new_owner);
+    }
+
+    fun assert_station_cap(cap: &StationCap, station: &Station) {
+        assert!(cap.station == object::id(station), EWrongStation);
+        let key = AuthorizedStationCapKey {};
+        if (dynamic_field::exists(&station.id, key)) {
+            assert!(
+                object::id(cap) == *dynamic_field::borrow<AuthorizedStationCapKey, ID>(&station.id, key),
+                ERevokedStationCap,
+            );
+        };
     }
 
     /// Disable station operations immediately. Removal completes only after all
@@ -241,7 +295,7 @@ module kirisame::umbrella {
         ctx: &mut TxContext,
     ) {
         assert!(station.status == StationStatus::Active, EStationInactive);
-        assert!(cap.station == object::id(station), EWrongStation);
+        assert_station_cap(cap, station);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         match (umbrella.state) {
             UmbrellaState::Created => {
@@ -347,7 +401,7 @@ module kirisame::umbrella {
         ctx: &mut TxContext,
     ) {
         assert!(station.status == StationStatus::Active, EStationInactive);
-        assert!(cap.station == object::id(station), EWrongStation);
+        assert_station_cap(cap, station);
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         assert!(umbrella.state == UmbrellaState::Held, EInvalidState);
         assert!(clock.timestamp_ms() < umbrella.inspection_deadline_ms, EInspectionClosed);
@@ -521,6 +575,16 @@ module kirisame::umbrella {
             );
             umbrella.last_condition_status = ConditionStatus::Paid;
         };
+    }
+
+    #[test_only]
+    public(package) fun station_payout_for_testing(station: &Station): address {
+        station.payout_address
+    }
+
+    #[test_only]
+    public(package) fun checkout_payout_for_testing(umbrella: &Umbrella): Option<address> {
+        umbrella.checkout_payout_address
     }
 
     #[test_only]
