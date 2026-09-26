@@ -1,11 +1,12 @@
-
+/// kirisame::umbrella is smart contract designed to create a way for users to purchase and 
+/// return semi-fungible real world objects from a managed pool of stations. 
+/// For more information, please refer to the repository at github.com/towa-hi/sui-kirisame
 module kirisame::umbrella {
     use sui::balance::Balance;
     use sui::sui::SUI;
     use sui::clock::Clock;
     use sui::coin::Coin;
     use std::string::String;
-    use sui::event;
     
     public struct AdminCap has key, store {
         id: UID,
@@ -15,13 +16,6 @@ module kirisame::umbrella {
     public struct StationCap has key, store {
         id: UID,
         station: ID,
-    }
-
-    public struct StationTransferred has copy, drop {
-        station: ID,
-        previous_payout_address: address,
-        new_owner: address,
-        new_cap: ID,
     }
 
     public enum UmbrellaState has copy, drop, store {
@@ -166,16 +160,8 @@ module kirisame::umbrella {
     ) {
         assert!(station.status == StationStatus::Active, EStationInactive);
         let cap = StationCap { id: object::new(ctx), station: object::id(station) };
-        let new_cap = object::id(&cap);
-        station.authorized_cap = new_cap;
-        let previous_payout_address = station.payout_address;
+        station.authorized_cap = object::id(&cap);
         station.payout_address = new_owner;
-        event::emit(StationTransferred {
-            station: object::id(station),
-            previous_payout_address,
-            new_owner,
-            new_cap,
-        });
         transfer::transfer(cap, new_owner);
     }
 
