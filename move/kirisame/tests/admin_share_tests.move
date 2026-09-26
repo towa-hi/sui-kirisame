@@ -27,7 +27,9 @@ module kirisame::admin_share_tests {
         umbrella::admin_create_station(&admin, b"Station".to_string(), b"Location".to_string(),
             0, 0, @0xE, scenario.ctx());
         transfer::public_transfer(admin, @0xF);
-        scenario.next_tx(@0xD);
+        scenario.next_tx(@0xE);
+        assert!(!test_scenario::has_most_recent_for_address<StationCap>(@0xD));
+        assert!(test_scenario::has_most_recent_for_address<StationCap>(@0xE));
         let mut station = scenario.take_shared<Station>();
         let cap = scenario.take_from_sender<StationCap>();
         let mut asset = scenario.take_shared<Umbrella>();
@@ -61,9 +63,9 @@ module kirisame::admin_share_tests {
             umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
             umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         } else {
-            let cap = scenario.take_from_address<StationCap>(@0xD);
+            let cap = scenario.take_from_address<StationCap>(@0xE);
             umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
-            test_scenario::return_to_address(@0xD, cap);
+            test_scenario::return_to_address(@0xE, cap);
         };
         test_scenario::return_shared(station);
         test_scenario::return_shared(asset);

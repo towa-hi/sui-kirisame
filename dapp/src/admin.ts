@@ -8,7 +8,7 @@ const umbrella = objectField('umbrella', 'Umbrella ID');
 const ownerCount = { name: 'expected_owner_count', label: 'Expected owner count', kind: 'integer' };
 
 export const adminActions = [
-  { id: 'admin_create_station', title: 'Create station', description: 'Register a station and its payout address.', fields: [
+  { id: 'admin_create_station', title: 'Create station', description: 'Register a station. The payout address receives access to station functions.', fields: [
     { name: 'display_name', label: 'Display name', kind: 'text' },
     { name: 'location_name', label: 'Location name', kind: 'text' },
     { name: 'latitude_e6', label: 'Encoded latitude (0–180,000,000)', kind: 'integer', max: '180000000' },

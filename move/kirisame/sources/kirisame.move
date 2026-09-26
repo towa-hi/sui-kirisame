@@ -116,7 +116,7 @@ module kirisame::umbrella {
         );
     }
 
-    /// Create a new station
+    /// Create a new station and give its payout address the station capability.
     public fun admin_create_station(
         admin: &AdminCap,
         display_name: String,
@@ -148,7 +148,7 @@ module kirisame::umbrella {
                 id: object::new(ctx),
                 station: station_id,
             },
-            ctx.sender(),
+            payout_address,
         );
     }
 
