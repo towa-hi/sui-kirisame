@@ -239,3 +239,33 @@ test('sold umbrella shows permanent ownership and cannot be purchased', async ()
   const rows = app.element('scan-details').children;
   assert.ok(rows.some(row => row.children[0].textContent === 'Usage period' && row.children[1].textContent === '1 day after the 2-minute inspection window'));
 });
+
+test('quarantine scanning selects a held umbrella and preserves its checkout count', async () => {
+  let selected;
+  const app = setup({ fetcher: async () => response({ objectId: id, state: 'Held', ownerCount: '9007199254740993' }) });
+  app.context.window.scanUmbrellaForQuarantine(data => { selected = data; });
+  await tick();
+  assert.equal(app.element('scan-title').textContent, 'Scan umbrella to quarantine');
+  app.scan(id); await tick();
+  assert.equal(selected.objectId, id);
+  assert.equal(selected.ownerCount, '9007199254740993');
+  assert.equal(app.element('scan-dialog').open, false);
+  assert.equal(app.element('purchase-confirm').hidden, true);
+  assert.equal(app.stopped(), 1);
+});
+
+test('quarantine scanning rejects other states and allows retry with a held umbrella', async () => {
+  for (const state of ['Created', 'Docked', 'Quarantined', 'Sold', 'Retired']) {
+    let selected, currentState = state;
+    const app = setup({ fetcher: async () => response({ objectId: id, state: currentState, ownerCount: '1' }) });
+    app.context.window.scanUmbrellaForQuarantine(data => { selected = data; });
+    await tick(); app.scan(id); await tick();
+    assert.equal(selected, undefined);
+    assert.equal(app.element('scan-dialog').open, true);
+    assert.match(app.element('scan-error').textContent, /Only checked-out umbrellas/);
+    currentState = 'Held';
+    app.element('scan-again').handlers.click(); await tick();
+    app.scan(id); await tick();
+    assert.equal(selected.state, 'Held');
+  }
+});

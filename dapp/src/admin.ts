@@ -120,7 +120,7 @@ export const adminScript = /* js */ `
       if (!response.ok) throw new Error(result.error || 'Unable to load stations.');
       if (account !== selectedAccount) return;
       availableStations = result.stations;
-      stationAccessMessage = availableStations.length ? 'Scan an umbrella to dock it at your station.' : 'This wallet does not own an active station.';
+      stationAccessMessage = availableStations.length ? 'Scan an umbrella to dock or quarantine it at your station.' : 'This wallet does not own an active station.';
     } catch (error) {
       if (account !== selectedAccount) return;
       stationAccessMessage = error.message || 'Unable to load stations. Reconnect to retry.';
@@ -198,7 +198,7 @@ export const adminScript = /* js */ `
     }
     if (scannedUmbrella && availableStations.length > 1) {
       const label = document.createElement('label');
-      label.className = 'admin-field'; label.textContent = 'Dock at station';
+      label.className = 'admin-field'; label.textContent = adminAction.id === 'station_quarantine_umbrella' ? 'Quarantine at station' : 'Dock at station';
       const select = document.createElement('select');
       availableStations.forEach((station, index) => select.add(new Option(station.name + ' · ' + station.station, String(index))));
       select.addEventListener('change', () => {
@@ -215,9 +215,10 @@ export const adminScript = /* js */ `
   for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
     const action = adminActions.find(action => action.id === button.dataset.action);
     if (adminPending || !canUseAction(action)) return;
-    if (action.id === 'station_dock_umbrella') {
+    if (action.id === 'station_dock_umbrella' || action.id === 'station_quarantine_umbrella') {
       const scanningAccount = account;
-      window.scanUmbrellaForDock(data => {
+      const scan = action.id === 'station_quarantine_umbrella' ? window.scanUmbrellaForQuarantine : window.scanUmbrellaForDock;
+      scan(data => {
         if (account !== scanningAccount || !canUseAction(action)) { showToast('The wallet changed. Scan again with your station wallet.', 'error'); return; }
         openAdminAction(action, data);
       });

@@ -55,14 +55,14 @@ export const scanScript = /* js */ `
     const purchaseStatus = document.getElementById('purchase-status');
     const purchaseTransaction = document.getElementById('purchase-transaction');
     const pendingPurchases = new Map();
-    let umbrella = null, purchasePending = false, dockSelection = null;
+    let umbrella = null, purchasePending = false, stationSelection = null;
     function renderPurchase() {
-      const available = !dockSelection && umbrella?.state === 'Docked' && !!umbrella.station;
+      const available = !stationSelection && umbrella?.state === 'Docked' && !!umbrella.station;
       const digest = pendingPurchases.get(umbrella?.objectId);
       purchase.hidden = !available && !digest;
       purchase.disabled = purchasePending || (!digest && !account);
       purchase.textContent = purchasePending ? 'Processing purchase…' : digest ? 'Check purchase status' : 'Purchase for ' + (umbrella ? formatSui(umbrella.purchasePrice) : '');
-      purchaseNote.hidden = !umbrella || !!dockSelection;
+      purchaseNote.hidden = !umbrella || !!stationSelection;
       purchaseNote.textContent = available ? 'Pay ' + formatSui(umbrella.purchasePrice) + ' plus network gas fees. Your inspection window starts when the purchase confirms.' : 'This umbrella is not available for purchase.';
       document.getElementById('purchase-connect').hidden = !available || !!account;
       document.getElementById('purchase-connect').value = umbrella?.objectId || '';
@@ -76,7 +76,7 @@ export const scanScript = /* js */ `
     }
     window.addEventListener('kirisame-wallet-change', renderPurchase);
     purchase.addEventListener('click', async () => {
-      if (purchasePending || dockSelection || !umbrella) return;
+      if (purchasePending || stationSelection || !umbrella) return;
       const selected = umbrella;
       let digest = pendingPurchases.get(selected.objectId);
       if (!digest && (!account || selected.state !== 'Docked' || !selected.station)) return;
@@ -193,10 +193,12 @@ export const scanScript = /* js */ `
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to load umbrella details.');
         if (current !== generation || !dialog.open) return;
-        if (dockSelection) {
-          if (!['Created', 'Held'].includes(data.state)) throw new Error('Only new or checked-out umbrellas can be docked.');
-          const onSelected = dockSelection;
-          dockSelection = null;
+        if (stationSelection) {
+          if (stationSelection.action === 'quarantine') {
+            if (data.state !== 'Held') throw new Error('Only checked-out umbrellas can be quarantined.');
+          } else if (!['Created', 'Held'].includes(data.state)) throw new Error('Only new or checked-out umbrellas can be docked.');
+          const onSelected = stationSelection.onSelected;
+          stationSelection = null;
           dialog.close();
           onSelected(data);
           return;
@@ -231,7 +233,7 @@ export const scanScript = /* js */ `
       purchaseStatus.textContent = ''; purchaseTransaction.hidden = true;
       cancel();
       const current = generation;
-      document.getElementById('scan-title').textContent = dockSelection ? 'Scan umbrella to dock' : 'Scan umbrella';
+      document.getElementById('scan-title').textContent = stationSelection ? 'Scan umbrella to ' + stationSelection.action : 'Scan umbrella';
       error.textContent = ''; details.hidden = true; explorer.hidden = true; again.hidden = true; video.hidden = false; lookup.disabled = false;
       status.textContent = 'Opening camera…';
       try {
@@ -257,14 +259,16 @@ export const scanScript = /* js */ `
           failure.name === 'NotReadableError' ? 'The camera is unavailable or in use by another app. Close it and try again.' : failure.message;
       }
     }
-    window.scanUmbrellaForDock = onSelected => {
+    function scanForStation(action, onSelected) {
       if (purchasePending) return;
-      dockSelection = onSelected;
+      stationSelection = { action, onSelected };
       dialog.showModal(); void start();
     };
+    window.scanUmbrellaForDock = onSelected => scanForStation('dock', onSelected);
+    window.scanUmbrellaForQuarantine = onSelected => scanForStation('quarantine', onSelected);
     document.getElementById('scan-umbrella').addEventListener('click', () => { dialog.showModal(); void start(); });
     document.getElementById('scan-close').addEventListener('click', () => { if (!purchasePending) dialog.close(); });
-    dialog.addEventListener('close', () => { cancel(); dockSelection = null; });
+    dialog.addEventListener('close', () => { cancel(); stationSelection = null; });
     dialog.addEventListener('cancel', event => { if (purchasePending) event.preventDefault(); else cancel(); });
     again.addEventListener('click', () => void start());
     document.getElementById('scan-form').addEventListener('submit', event => { event.preventDefault(); void showUmbrella(document.getElementById('scan-id').value); });

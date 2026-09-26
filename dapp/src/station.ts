@@ -7,7 +7,7 @@ const fields = [
 
 export const stationActions = [
   { id: 'station_dock_umbrella', title: 'Dock umbrella', description: 'Scan the umbrella QR code to confirm physical receipt of a new umbrella or a return after inspection ends. After one day of usage, a return finalizes ownership instead: the umbrella leaves the system and is permanently yours.', fields },
-  { id: 'station_quarantine_umbrella', title: 'Quarantine umbrella', description: 'Confirm rejection during the inspection period, refund the buyer, and hold the umbrella for admin review.', fields },
+  { id: 'station_quarantine_umbrella', title: 'Quarantine umbrella', description: 'Scan the umbrella QR code to confirm rejection during the inspection period, refund the buyer, and hold the umbrella for admin review.', fields },
 ];
 
 export const stationMarkup = /* html */ `
