@@ -174,3 +174,26 @@ test('wallet change during preparation prevents signing', async () => {
   app.context.account = null; finish(response({ transaction: '{}' })); await pending;
   assert.equal(signed, 0); assert.match(app.element('scan-error').textContent, /wallet changed/);
 });
+
+test('dock scanning selects a new umbrella without showing purchase actions', async () => {
+  let selected;
+  const app = setup({ fetcher: async () => ({ ok: true, json: async () => ({ objectId: id, state: 'Created', ownerCount: '9007199254740993' }) }) });
+  app.context.window.scanUmbrellaForDock(data => { selected = data; });
+  await tick(); app.scan(id); await tick();
+  assert.equal(selected.objectId, id);
+  assert.equal(selected.ownerCount, '9007199254740993');
+  assert.equal(app.element('scan-dialog').open, false);
+  assert.equal(app.element('purchase-confirm').hidden, true);
+  assert.equal(app.stopped(), 1);
+});
+test('dock scanning rejects unavailable umbrellas and can be cancelled', async () => {
+  let selected = false;
+  const app = setup();
+  app.context.window.scanUmbrellaForDock(() => { selected = true; });
+  await tick(); app.scan(id); await tick();
+  assert.equal(selected, false);
+  assert.match(app.element('scan-error').textContent, /Only new or checked-out/);
+  app.element('scan-close').handlers.click();
+  await app.open(); app.scan(id); await tick();
+  assert.equal(app.element('scan-details').hidden, false);
+});

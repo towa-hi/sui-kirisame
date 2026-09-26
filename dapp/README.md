@@ -110,3 +110,14 @@ original package through Sui's testnet GraphQL indexer; newly created or updated
 may take time to appear. `KIRISAME_GRAPHQL_URL` overrides the default testnet endpoint.
 The shared deployment settings in `src/deployment.ts` apply to inventory, scans, and
 transaction construction. Keep the Station and Umbrella BCS layouts in sync with Move.
+
+### Docking by QR code
+
+In **Station → Dock umbrella**, connect a wallet holding a StationCap for an active
+station, then scan the umbrella label. The confirmation form fills the umbrella
+and station IDs automatically; wallets owning multiple active stations can choose
+the receiving station. The capability and expected owner count need no manual input.
+The server verifies station ownership and reads the latest owner count when preparing
+the transaction. Move still enforces ownership, inspection timing, and buyback rules.
+Camera denial supports manual umbrella ID entry. Physical camera scanning still
+requires testing on the target device.

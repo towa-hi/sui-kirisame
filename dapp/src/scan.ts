@@ -55,14 +55,14 @@ export const scanScript = /* js */ `
     const purchaseStatus = document.getElementById('purchase-status');
     const purchaseTransaction = document.getElementById('purchase-transaction');
     const pendingPurchases = new Map();
-    let umbrella = null, purchasePending = false;
+    let umbrella = null, purchasePending = false, dockSelection = null;
     function renderPurchase() {
-      const available = umbrella?.state === 'Docked' && !!umbrella.station;
+      const available = !dockSelection && umbrella?.state === 'Docked' && !!umbrella.station;
       const digest = pendingPurchases.get(umbrella?.objectId);
       purchase.hidden = !available && !digest;
       purchase.disabled = purchasePending || (!digest && !account);
       purchase.textContent = purchasePending ? 'Processing purchase…' : digest ? 'Check purchase status' : 'Purchase for ' + (umbrella ? formatSui(umbrella.purchasePrice) : '');
-      purchaseNote.hidden = !umbrella;
+      purchaseNote.hidden = !umbrella || !!dockSelection;
       purchaseNote.textContent = available ? 'Pay ' + formatSui(umbrella.purchasePrice) + ' plus network gas fees. Your inspection window starts when the purchase confirms.' : 'This umbrella is not available for purchase.';
       document.getElementById('purchase-connect').hidden = !available || !!account;
       document.getElementById('purchase-connect').value = umbrella?.objectId || '';
@@ -76,7 +76,7 @@ export const scanScript = /* js */ `
     }
     window.addEventListener('kirisame-wallet-change', renderPurchase);
     purchase.addEventListener('click', async () => {
-      if (purchasePending || !umbrella) return;
+      if (purchasePending || dockSelection || !umbrella) return;
       const selected = umbrella;
       let digest = pendingPurchases.get(selected.objectId);
       if (!digest && (!account || selected.state !== 'Docked' || !selected.station)) return;
@@ -187,6 +187,14 @@ export const scanScript = /* js */ `
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to load umbrella details.');
         if (current !== generation || !dialog.open) return;
+        if (dockSelection) {
+          if (!['Created', 'Held'].includes(data.state)) throw new Error('Only new or checked-out umbrellas can be docked.');
+          const onSelected = dockSelection;
+          dockSelection = null;
+          dialog.close();
+          onSelected(data);
+          return;
+        }
         const rows = [
           ['Color', data.color], ['Status', data.state], ['Purchase price', formatSui(data.purchasePrice)],
           ['Condition bond', formatSui(data.conditionBond)], ['Usage fee per hour', formatSui((BigInt(data.feePerMs) * 3600000n).toString())],
@@ -217,7 +225,7 @@ export const scanScript = /* js */ `
       purchaseStatus.textContent = ''; purchaseTransaction.hidden = true;
       cancel();
       const current = generation;
-      document.getElementById('scan-title').textContent = 'Scan umbrella';
+      document.getElementById('scan-title').textContent = dockSelection ? 'Scan umbrella to dock' : 'Scan umbrella';
       error.textContent = ''; details.hidden = true; explorer.hidden = true; again.hidden = true; video.hidden = false; lookup.disabled = false;
       status.textContent = 'Opening camera…';
       try {
@@ -243,9 +251,14 @@ export const scanScript = /* js */ `
           failure.name === 'NotReadableError' ? 'The camera is unavailable or in use by another app. Close it and try again.' : failure.message;
       }
     }
+    window.scanUmbrellaForDock = onSelected => {
+      if (purchasePending) return;
+      dockSelection = onSelected;
+      dialog.showModal(); void start();
+    };
     document.getElementById('scan-umbrella').addEventListener('click', () => { dialog.showModal(); void start(); });
     document.getElementById('scan-close').addEventListener('click', () => { if (!purchasePending) dialog.close(); });
-    dialog.addEventListener('close', cancel);
+    dialog.addEventListener('close', () => { cancel(); dockSelection = null; });
     dialog.addEventListener('cancel', event => { if (purchasePending) event.preventDefault(); else cancel(); });
     again.addEventListener('click', () => void start());
     document.getElementById('scan-form').addEventListener('submit', event => { event.preventDefault(); void showUmbrella(document.getElementById('scan-id').value); });

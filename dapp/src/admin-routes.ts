@@ -5,9 +5,18 @@ import { Transaction, type TransactionArgument } from '@mysten/sui/transactions'
 import { isValidSuiAddress, normalizeSuiAddress, isValidTransactionDigest } from '@mysten/sui/utils';
 import { adminActions } from './admin.js';
 import { stationActions } from './station.js';
+import { ownedStations } from './station-access.js';
+import { umbrellaBcs } from './umbrella-routes.js';
 export function adminRoutes(sui: SuiGrpcClient, role: 'admin' | 'station' = 'admin') {
   const actions = role === 'station' ? stationActions : adminActions;
   const routes = new Hono();
+  if (role === 'station') routes.get('/owned/:owner', async c => {
+    c.header('Cache-Control', 'no-store');
+    const owner = c.req.param('owner');
+    if (!isValidSuiAddress(owner)) return c.json({ error: 'Invalid wallet address.' }, 400);
+    try { return c.json({ stations: await ownedStations(sui, owner) }); }
+    catch { return c.json({ error: 'Unable to load your stations. Reconnect your wallet to retry.' }, 502); }
+  });
   routes.post('/:action', async c => {
     c.header('Cache-Control', 'no-store');
     const action = actions.find(item => item.id === c.req.param('action'));
@@ -32,8 +41,15 @@ export function adminRoutes(sui: SuiGrpcClient, role: 'admin' | 'station' = 'adm
         if (!objects.length) return c.json({ error: 'This wallet does not own the Kirisame AdminCap on testnet.' }, 403);
         args.push(tx.object(objects[0].objectId));
       }
-      // Station forms supply the capability explicitly so operators can choose
-      // among multiple stations. Move validates its type, ownership and station.
+      if (action.id === 'station_dock_umbrella') {
+        const stations = await ownedStations(sui, body.sender);
+        const station = stations.find(item => item.station === normalizeSuiAddress(String(values.station)) && item.cap === normalizeSuiAddress(String(values.cap)));
+        if (!station) return c.json({ error: 'This wallet does not own an active station matching this request.' }, 403);
+        const { object } = await sui.getObject({ objectId: normalizeSuiAddress(String(values.umbrella)), include: { content: true }, signal: AbortSignal.timeout(10000) });
+        if (object.type !== `${normalizeSuiAddress(originalId)}::umbrella::Umbrella`) return c.json({ error: 'This object is not a Kirisame umbrella.' }, 422);
+        values.expected_owner_count = umbrellaBcs.parse(object.content).owner_count;
+      }
+      // Move also enforces capability ownership, station matching and lifecycle rules.
       for (const field of action.fields) {
         const value = values[field.name];
         args.push(field.name === 'payout_address' ? tx.pure.address(normalizeSuiAddress(String(value))) : field.kind === 'object' ? tx.object(normalizeSuiAddress(String(value))) : field.kind === 'integer' ? tx.pure.u64(String(value)) : field.kind === 'boolean' ? tx.pure.bool(Boolean(value)) : tx.pure.string(String(value)));

@@ -6,7 +6,7 @@ const fields = [
 ];
 
 export const stationActions = [
-  { id: 'station_dock_umbrella', title: 'Dock umbrella', description: 'Confirm physical receipt of a new umbrella or a return after inspection ends. Returns require a positive buyback.', fields },
+  { id: 'station_dock_umbrella', title: 'Dock umbrella', description: 'Scan the umbrella QR code to confirm physical receipt of a new umbrella or a return after inspection ends. Returns require a positive buyback.', fields },
   { id: 'station_quarantine_umbrella', title: 'Quarantine umbrella', description: 'Confirm rejection during the inspection period, refund the buyer, and hold the umbrella for admin review.', fields },
 ];
 

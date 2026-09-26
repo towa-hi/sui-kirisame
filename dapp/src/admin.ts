@@ -62,6 +62,7 @@ export const adminStyles = /* css */ `
   dialog p { font-size: .85rem; color: #526358; }
   fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
   .admin-field { display: block; font-size: .85rem; margin-top: 1rem; }
+  .admin-field[hidden] { display: none; }
   .admin-field input, .admin-field select { display: block; width: 100%; margin-top: .4rem; padding: .7rem; border: 1px solid #aebeb2; border-radius: .5rem; background: #fff; color: #243c32; font: inherit; font-size: 1rem; }
   .admin-field input:focus-visible, .admin-field select:focus-visible { outline: 2px solid #557866; outline-offset: 2px; }
   .modal-actions { display: flex; gap: .65rem; margin-top: 1.4rem; }
@@ -105,8 +106,30 @@ export const adminScript = /* js */ `
     clearTimeout(toastTimer);
     toast.hidden = true;
   });
+  let ownedStationAccount = null, availableStations = [], stationAccessMessage = '';
+  async function loadStationAccess() {
+    const selectedAccount = account;
+    ownedStationAccount = selectedAccount;
+    availableStations = [];
+    stationAccessMessage = selectedAccount ? 'Loading your stations…' : '';
+    renderAdminAccess();
+    if (!selectedAccount) return;
+    try {
+      const response = await fetch('/api/station/owned/' + encodeURIComponent(selectedAccount.address), { signal: AbortSignal.timeout(15000) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to load stations.');
+      if (account !== selectedAccount) return;
+      availableStations = result.stations;
+      stationAccessMessage = availableStations.length ? 'Scan an umbrella to dock it at your station.' : 'This wallet does not own an active station.';
+    } catch (error) {
+      if (account !== selectedAccount) return;
+      stationAccessMessage = error.message || 'Unable to load stations. Reconnect to retry.';
+    }
+    renderAdminAccess();
+  }
+  window.addEventListener('kirisame-wallet-change', () => { if (account !== ownedStationAccount) void loadStationAccess(); });
   function canUseAction(action) {
-    return action?.id.startsWith('station_') ? Boolean(account) : isMonoWallet();
+    return action?.id.startsWith('station_') ? Boolean(account && account === ownedStationAccount && availableStations.length) : isMonoWallet();
   }
   function renderAdminAccess() {
     const allowed = isMonoWallet();
@@ -117,7 +140,7 @@ export const adminScript = /* js */ `
       ? 'Testnet · mono connected. Admin functions require the Kirisame AdminCap.'
       : 'Testnet · Connect mono to use admin functions.';
     document.getElementById('station-mode').textContent = account
-      ? 'Testnet · Station functions require your matching StationCap and an active station.'
+      ? 'Testnet · ' + stationAccessMessage
       : 'Testnet · Connect your wallet to use station functions. You must own the matching StationCap.';
     if (!canUseAction(adminAction) && !adminPending && adminDialog.open) adminDialog.close();
   }
@@ -131,8 +154,7 @@ export const adminScript = /* js */ `
     document.getElementById('admin-pending').hidden = !value;
     renderAdminAccess();
   }
-  for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
-    const action = adminActions.find(action => action.id === button.dataset.action);
+  function openAdminAction(action, scannedUmbrella = null) {
     if (adminPending || !canUseAction(action)) return;
     adminAction = action;
     document.getElementById('admin-dialog-title').textContent = adminAction.title;
@@ -165,13 +187,41 @@ export const adminScript = /* js */ `
           input.title = 'Enter a non-negative whole number.';
         } else input.maxLength = 256;
       }
+      if (scannedUmbrella) {
+        input.value = field.name === 'umbrella' ? scannedUmbrella.objectId : field.name === 'expected_owner_count' ? scannedUmbrella.ownerCount : availableStations[0][field.name];
+        input.readOnly = true;
+        if (field.name === 'cap' || field.name === 'expected_owner_count') label.hidden = true;
+      }
       input.addEventListener('input', () => input.setCustomValidity(''));
       label.append(input);
       adminFields.append(label);
     }
+    if (scannedUmbrella && availableStations.length > 1) {
+      const label = document.createElement('label');
+      label.className = 'admin-field'; label.textContent = 'Dock at station';
+      const select = document.createElement('select');
+      availableStations.forEach((station, index) => select.add(new Option(station.name + ' · ' + station.station, String(index))));
+      select.addEventListener('change', () => {
+        const station = availableStations[Number(select.value)];
+        adminForm.elements.namedItem('cap').value = station.cap;
+        adminForm.elements.namedItem('station').value = station.station;
+      });
+      label.append(select); adminFields.prepend(label);
+    }
     if (adminAction.id === 'admin_create_station') addStationLocationControls();
     renderAdminAccess();
     adminDialog.showModal();
+  }
+  for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
+    const action = adminActions.find(action => action.id === button.dataset.action);
+    if (adminPending || !canUseAction(action)) return;
+    if (action.id === 'station_dock_umbrella') {
+      const scanningAccount = account;
+      window.scanUmbrellaForDock(data => {
+        if (account !== scanningAccount || !canUseAction(action)) { showToast('The wallet changed. Scan again with your station wallet.', 'error'); return; }
+        openAdminAction(action, data);
+      });
+    } else openAdminAction(action);
   });
   adminCancel.addEventListener('click', () => { if (!adminPending) adminDialog.close(); });
   adminDialog.addEventListener('cancel', event => { if (adminPending) event.preventDefault(); });
