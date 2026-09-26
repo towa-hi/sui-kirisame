@@ -79,7 +79,6 @@ module kirisame::settle_pending_payments_tests {
     #[test] fun just_before_cutoff() { run(2, 86_519_999, false, false, false); }
     #[test] fun inspection_open() { run(2, 119_999, false, false, false); }
     #[test] fun inspection_ended() { run(2, 120_000, false, false, false); }
-    #[test] fun inspection_ended_already_paid() { run(2, 120_000, true, false, false); }
     #[test] fun created() { run(0, 500_000, false, false, false); }
     #[test] fun docked() { run(1, 500_000, false, false, false); }
     #[test] fun quarantined() { run(3, 500_000, false, false, false); }

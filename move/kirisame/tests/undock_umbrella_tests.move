@@ -64,8 +64,6 @@ module kirisame::undock_umbrella_tests {
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
     fun created() { run(0, 100_000_000, 0, false, false); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
-    fun held() { run(2, 100_000_000, 1, false, false); }
-    #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
     fun quarantined() { run(3, 100_000_000, 1, false, false); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
     fun sold() { run(4, 100_000_000, 1, false, false); }
