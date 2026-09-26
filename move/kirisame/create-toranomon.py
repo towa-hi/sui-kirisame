@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a real Toranomon station and two Bob-supplied umbrellas using Sui CLI."""
+"""Create a real Toranomon station and two Alice-supplied umbrellas using Sui CLI."""
 
 import argparse
 import json
@@ -48,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--admin", default="mono", help="Admin key alias (default: mono)")
     parser.add_argument("--station", default="station", help="Station key alias")
-    parser.add_argument("--bob", default="bob-borrower", help="Bob key alias")
+    parser.add_argument("--supplier", default="alice-supplier", help="Supplier key alias (default: alice-supplier)")
     parser.add_argument("--check", action="store_true", help="Preflight and dry-run creation only; no transactions")
     args = parser.parse_args()
 
@@ -70,15 +70,15 @@ def main():
             raise RuntimeError(f"No unique local signing account for {alias!r}")
         return matches[0]
 
-    admin, station, bob = map(resolve, (args.admin, args.station, args.bob))
-    if len({admin, station, bob}) != 3:
-        raise RuntimeError("Admin, station, and Bob must be distinct accounts")
+    admin, station, supplier = map(resolve, (args.admin, args.station, args.supplier))
+    if len({admin, station, supplier}) != 3:
+        raise RuntimeError("Admin, station, and supplier must be distinct accounts")
     caps = owned_caps(cli("--client.env", env, "objects", admin), original)
     if len(caps) != 1:
         raise RuntimeError(f"Expected one AdminCap for this deployment; found {caps}")
 
-    # Each transaction uses a 0.1 SUI gas budget; Bob also splits a 0.03 SUI bond.
-    for address, required in ((admin, 100_000_000), (station, 100_000_000), (bob, 260_000_000)):
+    # Each transaction uses a 0.1 SUI gas budget; the supplier also splits a 0.03 SUI bond.
+    for address, required in ((admin, 100_000_000), (station, 100_000_000), (supplier, 260_000_000)):
         coins = cli("--client.env", env, "gas", address)
         coins = coins.get("gasCoins", []) if isinstance(coins, dict) else coins
         if max((int(c["mistBalance"]) for c in coins), default=0) < required:
@@ -117,12 +117,12 @@ def main():
 
     def umbrella_commands(color):
         return ["--split-coins", "gas", "[30000000]", "--assign", "bond",
-                *call("user_create_umbrella", "bond.0", str(color), json.dumps("Bob Toranomon " + ("Black" if color == 1 else "Vinyl")))]
+                *call("user_create_umbrella", "bond.0", str(color), json.dumps("Alice Toranomon " + ("Black" if color == 1 else "Vinyl")))]
 
     if args.check:
         transact("station", admin, station_commands, True)
-        transact("black", bob, umbrella_commands(1), True)
-        transact("vinyl", bob, umbrella_commands(0), True)
+        transact("black", supplier, umbrella_commands(1), True)
+        transact("vinyl", supplier, umbrella_commands(0), True)
         print("Preflight passed. Creation dry runs passed; docking requires the created objects.")
         return
 
@@ -131,7 +131,7 @@ def main():
     station_cap = created(tx, f"{original}::umbrella::StationCap")
     umbrellas = {}
     for name, color in (("black", 1), ("vinyl", 0)):
-        tx = transact(name, bob, umbrella_commands(color))
+        tx = transact(name, supplier, umbrella_commands(color))
         umbrellas[name] = created(tx, f"{original}::umbrella::Umbrella")
     commands = []
     for umbrella in umbrellas.values():
@@ -139,7 +139,7 @@ def main():
                          f"@{umbrella}", "0", "@0x6")
     transact("dock-both", station, commands)
     summary = {"network": env, "package": package, "station": station_id,
-               "station_cap": station_cap, "station_account": station, "supplier": bob, **umbrellas}
+               "station_cap": station_cap, "station_account": station, "supplier": supplier, **umbrellas}
     (logs / "result.json").write_text(json.dumps(summary, indent=2) + "\n")
     print("Both umbrellas docked.\n" + json.dumps(summary, indent=2))
 
