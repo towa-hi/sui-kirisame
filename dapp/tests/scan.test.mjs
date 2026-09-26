@@ -269,3 +269,59 @@ test('quarantine scanning rejects other states and allows retry with a held umbr
     assert.equal(selected.state, 'Held');
   }
 });
+
+const adminScans = [
+  ['admin_retire_station_umbrella', { ...docked }],
+  ['admin_review_quarantined_umbrella', { ...docked, state: 'Quarantined', conditionStatus: 'AwaitingReview' }],
+  ['admin_retire_umbrella', { ...docked, state: 'Quarantined', conditionStatus: 'Paid' }],
+  ['admin_retire_umbrella', { ...docked, state: 'Quarantined', conditionStatus: 'Forfeited' }],
+];
+test('admin QR scans preserve station and precise checkout count without purchase actions', async () => {
+  for (const [action, data] of adminScans) {
+    let selected;
+    const app = setup({ fetcher: async () => response({ ...data, ownerCount: '18446744073709551615' }) });
+    app.context.window.scanUmbrellaForAdmin(action, value => { selected = value; });
+    await tick();
+    app.scan('https://my.slush.app/browse/' + encodeURIComponent('https://kirisame.example/?umbrella=' + id));
+    await tick();
+    assert.equal(selected.objectId, id);
+    assert.equal(selected.station, docked.station);
+    assert.equal(selected.ownerCount, '18446744073709551615');
+    assert.equal(app.element('scan-dialog').open, false);
+    assert.equal(app.element('purchase-confirm').hidden, true);
+    assert.equal(app.stopped(), 1);
+  }
+});
+test('admin scans reject ineligible states and allow retry with eligible umbrellas', async () => {
+  for (const [action, valid] of adminScans) {
+    for (const invalid of [{ ...valid, state: 'Sold' }, { ...valid, station: null, conditionStatus: 'RefundApproved' }]) {
+      if (action === 'admin_retire_umbrella') invalid.conditionStatus = 'RefundApproved';
+      let selected, data = invalid;
+      const app = setup({ fetcher: async () => response(data) });
+      app.context.window.scanUmbrellaForAdmin(action, value => { selected = value; });
+      await tick(); app.scan(id); await tick();
+      assert.equal(selected, undefined);
+      assert.equal(app.element('scan-dialog').open, true);
+      assert.ok(app.element('scan-error').textContent);
+      data = valid;
+      app.element('scan-again').handlers.click(); await tick(); app.scan(id); await tick();
+      assert.equal(selected.objectId, id);
+    }
+  }
+});
+test('admin scanner permits manual lookup after camera denial and resets selection on cancel', async () => {
+  let selected;
+  const app = setup({ camera: async () => { throw Object.assign(new Error(), { name: 'NotAllowedError' }); }, fetcher: async () => response(docked) });
+  app.context.window.scanUmbrellaForAdmin('admin_retire_station_umbrella', data => { selected = data; });
+  await tick();
+  app.element('scan-id').value = id;
+  app.element('scan-form').handlers.submit({ preventDefault() {} }); await tick();
+  assert.equal(selected.objectId, id);
+  selected = undefined;
+  app.context.window.scanUmbrellaForAdmin('admin_retire_station_umbrella', data => { selected = data; });
+  app.element('scan-close').handlers.click();
+  await app.open();
+  app.element('scan-form').handlers.submit({ preventDefault() {} }); await tick();
+  assert.equal(selected, undefined);
+  assert.equal(app.element('scan-details').hidden, false);
+});

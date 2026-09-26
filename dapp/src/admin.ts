@@ -16,9 +16,9 @@ export const adminActions = [
     objectField('payout_address', 'Station wallet address (receives payouts and station access)'),
   ] },
   { id: 'admin_remove_station', title: 'Remove station', description: 'Stop station operations. Docked umbrellas must be retired to finish removal.', fields: [station] },
-  { id: 'admin_retire_station_umbrella', title: 'Retire station umbrella', description: 'Retire a docked umbrella at a station being removed and refund its pending hold.', fields: [station, umbrella] },
-  { id: 'admin_review_quarantined_umbrella', title: 'Review quarantined umbrella', description: 'Make a final refund decision for a quarantined umbrella.', fields: [station, umbrella, ownerCount, { name: 'approve_refund', label: 'Refund decision', kind: 'boolean' }] },
-  { id: 'admin_retire_umbrella', title: 'Retire quarantined umbrella', description: 'Permanently retire a quarantined umbrella after its payments are settled.', fields: [umbrella, ownerCount] },
+  { id: 'admin_retire_station_umbrella', title: 'Retire station umbrella', description: 'Scan the umbrella QR code to retire a docked umbrella at a station being removed and refund its pending hold.', fields: [station, umbrella] },
+  { id: 'admin_review_quarantined_umbrella', title: 'Review quarantined umbrella', description: 'Scan the umbrella QR code to make a final refund decision for a quarantined umbrella.', fields: [station, umbrella, ownerCount, { name: 'approve_refund', label: 'Refund decision', kind: 'boolean' }] },
+  { id: 'admin_retire_umbrella', title: 'Retire quarantined umbrella', description: 'Scan the umbrella QR code to permanently retire a quarantined umbrella after its payments are settled.', fields: [umbrella, ownerCount] },
   { id: 'admin_settle_pending_payments', title: 'Settle pending payments', description: 'Process eligible payments for one umbrella. Open inspections remain pending.', fields: [umbrella] },
 ];
 
@@ -187,8 +187,11 @@ export const adminScript = /* js */ `
           input.title = 'Enter a non-negative whole number.';
         } else input.maxLength = 256;
       }
-      if (scannedUmbrella) {
-        input.value = field.name === 'umbrella' ? scannedUmbrella.objectId : field.name === 'expected_owner_count' ? scannedUmbrella.ownerCount : availableStations[0][field.name];
+      if (scannedUmbrella && field.kind !== 'boolean') {
+        input.value = field.name === 'umbrella' ? scannedUmbrella.objectId
+          : field.name === 'expected_owner_count' ? scannedUmbrella.ownerCount
+          : adminAction.id.startsWith('station_') ? availableStations[0][field.name]
+          : scannedUmbrella.station;
         input.readOnly = true;
         if (field.name === 'cap' || field.name === 'expected_owner_count') label.hidden = true;
       }
@@ -196,7 +199,7 @@ export const adminScript = /* js */ `
       label.append(input);
       adminFields.append(label);
     }
-    if (scannedUmbrella && availableStations.length > 1) {
+    if (scannedUmbrella && adminAction.id.startsWith('station_') && availableStations.length > 1) {
       const label = document.createElement('label');
       label.className = 'admin-field'; label.textContent = adminAction.id === 'station_quarantine_umbrella' ? 'Quarantine at station' : 'Dock at station';
       const select = document.createElement('select');
@@ -215,11 +218,13 @@ export const adminScript = /* js */ `
   for (const button of document.querySelectorAll('.admin-action')) button.addEventListener('click', () => {
     const action = adminActions.find(action => action.id === button.dataset.action);
     if (adminPending || !canUseAction(action)) return;
-    if (action.id === 'station_dock_umbrella' || action.id === 'station_quarantine_umbrella') {
+    const adminScanActions = ['admin_retire_station_umbrella', 'admin_review_quarantined_umbrella', 'admin_retire_umbrella'];
+    if (action.id === 'station_dock_umbrella' || action.id === 'station_quarantine_umbrella' || adminScanActions.includes(action.id)) {
       const scanningAccount = account;
-      const scan = action.id === 'station_quarantine_umbrella' ? window.scanUmbrellaForQuarantine : window.scanUmbrellaForDock;
+      const scan = adminScanActions.includes(action.id) ? onSelected => window.scanUmbrellaForAdmin(action.id, onSelected)
+        : action.id === 'station_quarantine_umbrella' ? window.scanUmbrellaForQuarantine : window.scanUmbrellaForDock;
       scan(data => {
-        if (account !== scanningAccount || !canUseAction(action)) { showToast('The wallet changed. Scan again with your station wallet.', 'error'); return; }
+        if (account !== scanningAccount || !canUseAction(action)) { showToast('The wallet changed. Scan again with the appropriate wallet.', 'error'); return; }
         openAdminAction(action, data);
       });
     } else openAdminAction(action);
