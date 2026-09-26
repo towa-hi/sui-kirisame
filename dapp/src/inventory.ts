@@ -35,6 +35,12 @@ export const inventoryStyles = /* css */ `
   .inventory-card dt { color: #526358; }
   .inventory-card dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
   .inventory-card a { color: #315e40; text-underline-offset: 2px; }
+  .inventory-qr-toggle { margin-top: .85rem; }
+  .inventory-qr { margin-top: .75rem; text-align: center; }
+  .inventory-qr[hidden], .inventory-qr [hidden] { display: none; }
+  .inventory-qr img { display: block; width: 320px; max-width: 100%; height: auto; margin: 0 auto .5rem; }
+  .inventory-qr p { font-size: .8rem; overflow-wrap: anywhere; }
+  .inventory-qr-links { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; font-size: .85rem; }
   .inventory-more { width: 100%; border: 1px solid #cad4cc; margin-top: .6rem; font-size: .8rem; }
   .inventory-more[hidden] { display: none; }
 `;
@@ -86,6 +92,50 @@ export const inventoryScript = /* js */ `
       field('Condition status', item.conditionStatus);
     }
     card.append(heading, fields);
+    if (kind === 'umbrellas') {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'inventory-qr-toggle';
+      toggle.textContent = 'Show QR code';
+      toggle.setAttribute('aria-expanded', 'false');
+      const label = document.createElement('div');
+      label.id = 'inventory-qr-' + item.objectId;
+      label.className = 'inventory-qr';
+      label.hidden = true;
+      toggle.setAttribute('aria-controls', label.id);
+      const qr = document.createElement('img');
+      qr.width = qr.height = 320;
+      qr.alt = 'QR code for umbrella ' + item.objectId;
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      const qrUrl = '/api/umbrellas/' + encodeURIComponent(item.objectId) + '/qr?origin=' + encodeURIComponent(location.origin);
+      qr.addEventListener('load', () => { status.textContent = 'Scan with your camera to open in Slush, or scan in Kirisame to select this umbrella.'; });
+      qr.addEventListener('error', () => { qr.hidden = true; status.textContent = 'QR code could not load. Hide and show it to retry, or use the umbrella link below.'; });
+      const links = document.createElement('div');
+      links.className = 'inventory-qr-links';
+      const download = document.createElement('a');
+      download.href = qrUrl;
+      download.download = 'umbrella-' + item.objectId + '.svg';
+      download.textContent = 'Download QR code';
+      const open = document.createElement('a');
+      const appUrl = new URL('/', location.origin);
+      appUrl.searchParams.set('umbrella', item.objectId);
+      open.href = appUrl.href;
+      open.textContent = 'Open umbrella';
+      links.append(download, open);
+      label.append(qr, status, links);
+      toggle.addEventListener('click', () => {
+        label.hidden = !label.hidden;
+        toggle.textContent = label.hidden ? 'Show QR code' : 'Hide QR code';
+        toggle.setAttribute('aria-expanded', String(!label.hidden));
+        if (!label.hidden && (!qr.getAttribute('src') || qr.hidden)) {
+          qr.hidden = false;
+          status.textContent = 'Loading QR code…';
+          qr.src = qrUrl;
+        }
+      });
+      card.append(toggle, label);
+    }
     return card;
   }
   async function loadInventory(kind, more = false) {

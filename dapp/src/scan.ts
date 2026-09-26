@@ -154,12 +154,18 @@ export const scanScript = /* js */ `
     function objectId(raw) {
       const text = raw.trim();
       if (/^0x[0-9a-fA-F]{64}$/.test(text)) return text.toLowerCase();
-      // Support labels linking to this app or a Sui testnet object page.
+      // Only extract an ID; never navigate to or fetch a scanned URL.
+      // Labels remain usable across app hosts and inside Slush's browse wrapper.
       try {
-        const url = new URL(text);
+        let url = new URL(text);
         if (!['https:', 'http:'].includes(url.protocol)) return null;
-        const candidate = url.origin === location.origin ? url.searchParams.get('umbrella') :
-          url.hostname === 'suiscan.xyz' ? url.pathname.match(/^\\/testnet\\/object\\/(0x[0-9a-fA-F]{64})\\/?$/)?.[1] : null;
+        if (url.hostname === 'my.slush.app' && url.pathname.startsWith('/browse/')) {
+          const target = url.pathname.slice('/browse/'.length);
+          url = new URL((/^https?:/.test(target) ? target : decodeURIComponent(target)) + url.search + url.hash);
+          if (!['https:', 'http:'].includes(url.protocol)) return null;
+        }
+        const candidate = url.searchParams.get('umbrella') ?? (
+          url.hostname === 'suiscan.xyz' ? url.pathname.match(/^\\/testnet\\/object\\/(0x[0-9a-fA-F]{64})\\/?$/)?.[1] : null);
         return candidate && /^0x[0-9a-fA-F]{64}$/.test(candidate) ? candidate.toLowerCase() : null;
       } catch { return null; }
     }

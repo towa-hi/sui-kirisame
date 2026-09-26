@@ -186,6 +186,37 @@ test('dock scanning selects a new umbrella without showing purchase actions', as
   assert.equal(app.element('purchase-confirm').hidden, true);
   assert.equal(app.stopped(), 1);
 });
+test('dock scanning extracts IDs from Slush and existing labels across app hosts', async () => {
+  const labelId = '0x43a5017e1587ce91c713080d8408f2509f2094adcd08198c57d67785a6162082';
+  const link = 'https://kirisame-dapp.onrender.com/?umbrella=' + labelId;
+  for (const label of [link, 'https://my.slush.app/browse/' + link,
+    'https://my.slush.app/browse/' + encodeURIComponent(link)]) {
+    let selected, calls = 0;
+    const app = setup({ fetcher: async url => {
+      calls++;
+      assert.equal(url, '/api/umbrellas/' + labelId);
+      return response({ objectId: labelId, state: 'Created', ownerCount: '0' });
+    } });
+    app.context.window.scanUmbrellaForDock(data => { selected = data; });
+    await tick(); app.scan(label); await tick();
+    assert.equal(calls, 1);
+    assert.equal(selected.objectId, labelId);
+    assert.equal(app.element('scan-dialog').open, false);
+  }
+});
+test('malformed labels never trigger an object lookup', async () => {
+  for (const label of ['https://my.slush.app/browse/%ZZ',
+    'https://my.slush.app/browse/javascript:alert(1)?umbrella=' + id,
+    'javascript:alert(1)?umbrella=' + id,
+    'https://kirisame.example/?umbrella=0x123',
+    'https://my.slush.app/browse/https://kirisame.example/']) {
+    let calls = 0;
+    const app = setup({ fetcher: async () => { calls++; } });
+    await app.open(); app.scan(label); await tick();
+    assert.equal(calls, 0);
+    assert.match(app.element('scan-error').textContent, /valid umbrella object ID/);
+  }
+});
 test('dock scanning rejects unavailable umbrellas and can be cancelled', async () => {
   let selected = false;
   const app = setup();

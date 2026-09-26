@@ -90,11 +90,15 @@ is available. Success is shown only after chain confirmation.
 
 In **User → Purchase**, **Scan umbrella** opens a camera modal, preferring the rear camera. QR codes and supported 1D/2D barcodes are decoded locally with a bundled ZXing reader; camera images are not uploaded. Once decoded, the camera stops and the app looks up the object on Sui testnet. No wallet connection is needed.
 
-Labels can contain a full `0x` + 64 hexadecimal-character object ID, a `https://suiscan.xyz/testnet/object/<id>` link, or a same-origin app URL with `?umbrella=<id>`. Arbitrary product numbers have no mapping to Sui objects. A manual ID entry and **Scan again** are available for retries or unsupported cameras. Camera access requires HTTPS (or localhost) and browser permission.
+New QR labels encode `https://my.slush.app/browse/https://<app-host>/?umbrella=<id>` to open the umbrella in Slush. See [Slush deep linking](https://sdk.mystenlabs.com/slush-wallet/deep-linking). When scanned inside Kirisame, the same label supplies only the object ID for a local API lookup; the scanner never navigates to or fetches the scanned URL.
+
+Labels can also contain a full `0x` + 64 hexadecimal-character object ID, a `https://suiscan.xyz/testnet/object/<id>` link, or an HTTP(S) app URL with `?umbrella=<id>`. Existing labels work across app hosts, and Slush wrappers accept both literal and URL-encoded app URLs. Arbitrary product numbers have no mapping to Sui objects. A manual ID entry and **Scan again** are available for retries or unsupported cameras. Camera access requires HTTPS (or localhost) and browser permission.
 
 `GET /api/umbrellas/:id` checks the object's full package/module/type before decoding its BCS contents. The modal displays color, state, purchase price, condition bond, hourly usage fee, current station/holder, supplier, checkout count, condition-fund status, and an explorer link. The lookup uses the current published package by default, or `KIRISAME_ORIGINAL_PACKAGE_ID` / `KIRISAME_PACKAGE_ID` overrides. Keep the BCS layout in `src/umbrella-routes.ts` synchronized with contract upgrades.
 
 Tests cover object validation, lookup failures, precise amounts, duplicate scans, camera denial, and cleanup when closing during camera permission or lookup. Physical label scanning in the target phone/Slush browser still needs device testing.
+
+An umbrella from a different package deployment cannot be docked into the configured deployment's stations. Extracting its ID correctly does not change its Move type. Use an umbrella created by the configured deployment, or use its original deployment with a matching station and capability.
 
 ## Admin inventory
 

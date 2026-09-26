@@ -37,7 +37,9 @@ test('rejects unrelated objects, missing objects and chain failures distinctly',
   const wrong = umbrellaRoutes({ getObject: async () => ({ object: { type: '0x2::coin::Coin<0x2::sui::SUI>' } }) });
   assert.equal((await wrong.request('/' + id)).status, 422);
   const otherDeployment = umbrellaRoutes({ getObject: async () => ({ object: { type: `${id}::umbrella::Umbrella` } }) });
-  assert.equal((await otherDeployment.request('/' + id)).status, 422);
+  const mismatch = await otherDeployment.request('/' + id);
+  assert.equal(mismatch.status, 422);
+  assert.match((await mismatch.json()).error, /different Kirisame deployment/);
   for (const reason of ['notFound', 'deleted']) {
     const missing = umbrellaRoutes({ getObject: async () => { throw new ObjectError('NOT_FOUND', 'missing', { reason }); } });
     assert.equal((await missing.request('/' + id)).status, 404);
@@ -50,13 +52,13 @@ test('rejects unrelated objects, missing objects and chain failures distinctly',
 test('all rendered inline scripts parse', () => {
   for (const match of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(match[1]);
 });
-test('QR encodes the public umbrella link with a quiet zone and download filename', async () => {
+test('QR encodes the Slush browse umbrella link with a quiet zone and download filename', async () => {
   const routes = umbrellaRoutes({ getObject: () => { throw Error('QR generation needs no chain query'); } });
   const response = await routes.request('/' + id + '/qr?origin=https%3A%2F%2Fkirisame.example');
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type'), /image\/svg\+xml/);
   assert.match(response.headers.get('content-disposition'), /umbrella-0x1+\.svg/);
-  const expected = await QRCode.toString('https://kirisame.example/?umbrella=' + id, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+  const expected = await QRCode.toString('https://my.slush.app/browse/https://kirisame.example/?umbrella=' + id, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
   assert.equal(await response.text(), expected);
   for (const origin of ['javascript:alert(1)', 'https://evil.example/path', 'https://user:pass@example.com']) {
     assert.equal((await routes.request('/' + id + '/qr?origin=' + encodeURIComponent(origin))).status, 400);
