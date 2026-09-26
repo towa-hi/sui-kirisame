@@ -1,3 +1,4 @@
+import { purchaseMapMarkup, purchaseMapStyles, purchaseMapScript } from './purchase-map.js';
 import { scanMarkup, scanStyles, scanScript } from './scan.js';
 import { stationMarkup } from './station.js';
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
@@ -95,6 +96,7 @@ export const page = /* html */ `<!doctype html>
       .status { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #cad4cc; color: #526358; }
       ${adminStyles}
       ${scanStyles}
+      ${purchaseMapStyles}
       #supply-error { color: #9a332e; }
       #supply-error:empty, #supply-result:empty { display: none; }
       #supply-label [hidden] { display: none !important; }
@@ -121,6 +123,7 @@ export const page = /* html */ `<!doctype html>
           </nav>
           <section id="purchase-panel" role="tabpanel" aria-labelledby="purchase-tab">
             <button id="scan-umbrella" type="button" class="umbrella-action">SCAN UMBRELLA</button>
+            ${purchaseMapMarkup}
             <p class="status">Scan an umbrella’s QR code or barcode to see its details.</p>
           </section>
           <section id="supply-panel" role="tabpanel" aria-labelledby="supply-tab" hidden>
@@ -143,6 +146,7 @@ export const page = /* html */ `<!doctype html>
       ${adminScript}
       ${supplyScript}
       ${scanScript}
+      ${purchaseMapScript}
       const buttons = [...document.querySelectorAll('.connect-wallet')];
       const statuses = [...document.querySelectorAll('.wallet-status')];
       const details = [...document.querySelectorAll('.wallet-details')];
@@ -299,9 +303,11 @@ export const page = /* html */ `<!doctype html>
           item.tabIndex = selected ? 0 : -1;
           document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
         }
+        showPurchaseMap();
       }
       const initialTab = tabs.find(tab => tab.dataset.tab === location.hash.slice(1));
       if (initialTab) selectTab(initialTab);
+      else showPurchaseMap();
       for (const tab of document.querySelectorAll('[role="tab"]')) {
         tab.addEventListener('click', () => selectTab(tab));
         tab.addEventListener('keydown', (event) => {
