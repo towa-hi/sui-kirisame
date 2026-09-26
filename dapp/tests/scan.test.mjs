@@ -228,3 +228,14 @@ test('dock scanning rejects unavailable umbrellas and can be cancelled', async (
   await app.open(); app.scan(id); await tick();
   assert.equal(app.element('scan-details').hidden, false);
 });
+
+test('sold umbrella shows permanent ownership and cannot be purchased', async () => {
+  const app = setup({ fetcher: async () => ({ ok: true, json: async () => ({
+    ...docked, state: 'Sold', holder: id,
+  }) }) });
+  await app.open(); app.scan(id); await tick();
+  assert.equal(app.element('scan-status').textContent, 'This umbrella has been removed from the system and is permanently yours.');
+  assert.equal(app.element('purchase-confirm').hidden, true);
+  const rows = app.element('scan-details').children;
+  assert.ok(rows.some(row => row.children[0].textContent === 'Usage period' && row.children[1].textContent === '1 day after the 2-minute inspection window'));
+});

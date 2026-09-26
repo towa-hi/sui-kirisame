@@ -93,7 +93,7 @@ module kirisame::umbrella {
     const EInvalidState: u64 = 4;
     const EStaleOwnerCount: u64 = 5;
     const EInspectionOpen: u64 = 6;
-    const ENoBuyback: u64 = 7;
+    // Abort code 7 was formerly ENoBuyback; expired returns now finalize sales.
     const EInvalidPayment: u64 = 8;
     const EInspectionClosed: u64 = 9;
     const EReviewAlreadyFinalized: u64 = 10;
@@ -106,7 +106,9 @@ module kirisame::umbrella {
     const ADMIN_PERCENT: u64 = 10;
     const PURCHASE_PRICE: u64 = 100_000_000;
     const CONDITION_BOND: u64 = 30_000_000;
-    const FEE_PER_MS: u64 = 330;
+    // Retained in object layout for upgrade compatibility; pricing uses USAGE_PERIOD_MS.
+    const FEE_PER_MS: u64 = 0;
+    const USAGE_PERIOD_MS: u64 = 86_400_000;
     const INSPECTION_WINDOW_MS: u64 = 120_000;
 
     fun init(ctx: &mut TxContext) {
@@ -250,7 +252,10 @@ module kirisame::umbrella {
                 assert!(now >= umbrella.inspection_deadline_ms, EInspectionOpen);
                 let usage = usage_fee(umbrella, now);
                 let buyback = umbrella.purchase_price - usage;
-                assert!(buyback > 0, ENoBuyback);
+                if (buyback == 0) {
+                    finalize_sale(umbrella, ctx);
+                    return
+                };
 
                 pay_pending_condition(umbrella, ctx);
                 // Quotient/remainder arithmetic floors shares without overflowing.
@@ -425,6 +430,11 @@ module kirisame::umbrella {
         pay_pending_condition(umbrella, ctx);
         if (usage_fee(umbrella, clock.timestamp_ms()) < umbrella.purchase_price) return;
 
+        finalize_sale(umbrella, ctx);
+    }
+
+    fun finalize_sale(umbrella: &mut Umbrella, ctx: &mut TxContext) {
+        pay_pending_condition(umbrella, ctx);
         let amount = umbrella.active_escrow.value();
         let proceeds = pay_admin_share(umbrella, amount, ctx);
         let supplier_share = share(proceeds, 70);
@@ -438,15 +448,11 @@ module kirisame::umbrella {
         umbrella.state = UmbrellaState::Sold;
     }
 
-    // Cap before multiplying, including timestamps near u64::MAX.
+    // Use u128 to preserve an exact one-day period without per-ms rounding or overflow.
     fun usage_fee(umbrella: &Umbrella, now: u64): u64 {
-        if (now <= umbrella.inspection_deadline_ms || umbrella.fee_per_ms == 0) return 0;
-        let elapsed = now - umbrella.inspection_deadline_ms;
-        if (elapsed > umbrella.purchase_price / umbrella.fee_per_ms) {
-            umbrella.purchase_price
-        } else {
-            elapsed * umbrella.fee_per_ms
-        }
+        if (now <= umbrella.inspection_deadline_ms) return 0;
+        let elapsed = (now - umbrella.inspection_deadline_ms).min(USAGE_PERIOD_MS);
+        (((umbrella.purchase_price as u128) * (elapsed as u128) / (USAGE_PERIOD_MS as u128)) as u64)
     }
 
     #[test_only]

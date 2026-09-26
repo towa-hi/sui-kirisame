@@ -56,7 +56,7 @@ module kirisame::admin_share_tests {
         let mut asset = scenario.take_shared<Umbrella>();
         let mut station = scenario.take_shared<Station>();
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
-        clock.set_for_testing(if (final_sale) { 423_031 } else { 180_000 });
+        clock.set_for_testing(if (final_sale) { 86_520_000 } else { 17_227_200 });
         if (final_sale) {
             // Settlement survives station removal and cannot pay the new cap holder.
             umbrella::admin_remove_station(&admin, &mut station);

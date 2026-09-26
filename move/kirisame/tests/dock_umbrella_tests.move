@@ -88,32 +88,32 @@ module kirisame::dock_umbrella_tests {
     #[test]
     fun first_deposit() { run_dock(0, 0, 0, false, false, false, 0); }
     #[test]
-    fun normal_return() { run_dock(2, 180_000, 1, false, false, false, 19_800_000); }
+    fun normal_return() { run_dock(2, 17_227_200, 1, false, false, false, 19_800_000); }
     #[test]
     fun inspection_boundary() { run_dock(2, 120_000, 1, false, false, false, 0); }
     #[test]
-    fun rounding_remainder() { run_dock(2, 120_001, 1, false, false, false, 330); }
+    fun rounding_remainder() { run_dock(2, 120_001, 1, false, false, false, 1); }
     #[test]
-    fun small_buyback() { run_dock(2, 423_030, 1, false, false, false, 99_999_900); }
+    fun small_buyback() { run_dock(2, 86_519_999, 1, false, false, false, 99_999_998); }
     #[test]
-    fun previously_paid_hold() { run_dock(2, 180_000, 1, false, false, true, 19_800_000); }
+    fun previously_paid_hold() { run_dock(2, 17_227_200, 1, false, false, true, 19_800_000); }
 
     #[test, expected_failure(abort_code = 3, location = kirisame::umbrella)]
     fun wrong_station() { run_dock(0, 0, 0, true, false, false, 0); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
     fun duplicate_deposit() { run_dock(0, 0, 0, false, true, false, 0); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
-    fun duplicate_return() { run_dock(2, 180_000, 1, false, true, false, 0); }
+    fun duplicate_return() { run_dock(2, 17_227_200, 1, false, true, false, 0); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
-    fun quarantined() { run_dock(3, 180_000, 1, false, false, false, 0); }
+    fun quarantined() { run_dock(3, 17_227_200, 1, false, false, false, 0); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
-    fun sold() { run_dock(4, 180_000, 1, false, false, false, 0); }
+    fun sold() { run_dock(4, 17_227_200, 1, false, false, false, 0); }
     #[test, expected_failure(abort_code = 5, location = kirisame::umbrella)]
-    fun stale_cycle() { run_dock(2, 180_000, 0, false, false, false, 0); }
+    fun stale_cycle() { run_dock(2, 17_227_200, 0, false, false, false, 0); }
     #[test, expected_failure(abort_code = 6, location = kirisame::umbrella)]
     fun inspection_open() { run_dock(2, 119_999, 1, false, false, false, 0); }
-    #[test, expected_failure(abort_code = 7, location = kirisame::umbrella)]
-    fun zero_buyback() { run_dock(2, 423_031, 1, false, false, false, 0); }
-    #[test, expected_failure(abort_code = 7, location = kirisame::umbrella)]
-    fun far_future_return() { run_dock(2, 18_446_744_073_709_551_615, 1, false, false, false, 0); }
+    #[test]
+    fun zero_buyback() { kirisame::settle_pending_payments_tests::station_sale(86_520_000, false); }
+    #[test]
+    fun far_future_return() { kirisame::settle_pending_payments_tests::station_sale(18_446_744_073_709_551_615, true); }
 }

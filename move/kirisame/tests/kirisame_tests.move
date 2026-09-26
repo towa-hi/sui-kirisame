@@ -44,7 +44,7 @@ module kirisame::kirisame_tests {
         assert!(owner_count == 0);
         assert!(purchase_price == 100_000_000);
         assert!(condition_bond == 30_000_000);
-        assert!(fee_per_ms == 330);
+        assert!(fee_per_ms == 0);
         let (docked, condition_amount, condition_cycle, pending) = umbrella::docking_snapshot_for_testing(&umbrella);
         assert!(!docked && pending);
         assert!(condition_amount == 30_000_000 && condition_cycle == 0);

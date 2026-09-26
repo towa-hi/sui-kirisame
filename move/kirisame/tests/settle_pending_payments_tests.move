@@ -15,7 +15,7 @@ module kirisame::settle_pending_payments_tests {
         total
     }
 
-    fun run(state: u8, now: u64, already_paid: bool, settles: bool, try_return: bool) {
+    fun run_with_station(station_return: bool, state: u8, now: u64, already_paid: bool, settles: bool, try_return: bool) {
         let mut scenario = test_scenario::begin(@0xA);
         umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
         scenario.next_tx(@0xD);
@@ -26,7 +26,12 @@ module kirisame::settle_pending_payments_tests {
         let mut clock = sui::clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(now);
         let releases_hold = state == 2 && now >= 120_000 && !already_paid;
-        umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
+        if (station_return) {
+            umbrella::station_dock_umbrella(&cap, &mut station, &mut asset, 1, &clock, scenario.ctx());
+            assert!(umbrella::station_docked_count(&station) == 0);
+        } else {
+            umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
+        };
         // A periodic sweep can run repeatedly without paying twice.
         umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
         let (supplier, created, owner, pending, escrow, holder, current, checkout, payout, time, deadline, count, price, bond, rate) = umbrella::snapshot_for_testing(&asset);
@@ -60,10 +65,18 @@ module kirisame::settle_pending_payments_tests {
         scenario.end();
     }
 
-    #[test] fun exact_cutoff() { run(2, 423_031, false, true, false); }
-    #[test] fun already_paid_hold() { run(2, 423_031, true, true, false); }
+    fun run(state: u8, now: u64, already_paid: bool, settles: bool, try_return: bool) {
+        run_with_station(false, state, now, already_paid, settles, try_return);
+    }
+
+    public(package) fun station_sale(now: u64, already_paid: bool) {
+        run_with_station(true, 2, now, already_paid, true, false);
+    }
+
+    #[test] fun exact_cutoff() { run(2, 86_520_000, false, true, false); }
+    #[test] fun already_paid_hold() { run(2, 86_520_000, true, true, false); }
     #[test] fun far_future() { run(2, 18_446_744_073_709_551_615, false, true, false); }
-    #[test] fun just_before_cutoff() { run(2, 423_030, false, false, false); }
+    #[test] fun just_before_cutoff() { run(2, 86_519_999, false, false, false); }
     #[test] fun inspection_open() { run(2, 119_999, false, false, false); }
     #[test] fun inspection_ended() { run(2, 120_000, false, false, false); }
     #[test] fun inspection_ended_already_paid() { run(2, 120_000, true, false, false); }
@@ -72,7 +85,7 @@ module kirisame::settle_pending_payments_tests {
     #[test] fun quarantined() { run(3, 500_000, false, false, false); }
     #[test] fun sold() { run(4, 500_000, false, false, false); }
     #[test, expected_failure(abort_code = 4, location = kirisame::umbrella)]
-    fun settled_umbrella_cannot_return() { run(2, 423_031, false, true, true); }
+    fun settled_umbrella_cannot_return() { run(2, 86_520_000, false, true, true); }
 
     // Exercise actual purchases and returns with different buyers. The sweep
     // pays the recorded prior owner, never its caller or the current buyer.
@@ -186,7 +199,7 @@ module kirisame::settle_pending_payments_tests {
         assert!(owner == option::some(@0xB) && pending == 0 && escrow == 100_000_000);
         assert!(holder == option::some(@0xC) && time == 120_000 && deadline == 240_000 && count == 2);
         if (final_sale) {
-            clock.set_for_testing(543_031);
+            clock.set_for_testing(86_640_000);
             umbrella::admin_settle_pending_payments(&admin, &mut asset, &clock, scenario.ctx());
             let (sold, paid, _, _) = umbrella::sale_snapshot_for_testing(&asset);
             assert!(sold && paid);

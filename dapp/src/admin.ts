@@ -267,8 +267,15 @@ export const adminScript = /* js */ `
       const confirmation = await fetch('/api/admin/transactions/' + encodeURIComponent(digest), { signal: AbortSignal.timeout(25000) });
       const outcome = await confirmation.json();
       if (!confirmation.ok || !outcome.success) throw new Error(outcome.error || 'Unable to confirm the transaction.');
+      let completionMessage = adminAction.title + ' completed.';
+      if (adminAction.id === 'station_dock_umbrella') {
+        const umbrellaResponse = await fetch('/api/umbrellas/' + encodeURIComponent(parameters.umbrella), { signal: AbortSignal.timeout(15000) });
+        const returnedUmbrella = await umbrellaResponse.json();
+        if (!umbrellaResponse.ok) throw new Error('Transaction confirmed, but the umbrella status could not be loaded. Scan it again to check the result.');
+        if (returnedUmbrella.state === 'Sold') completionMessage = 'This umbrella has been removed from the system and is permanently yours.';
+      }
       adminDialog.close();
-      showToast(adminAction.title + ' completed.');
+      showToast(completionMessage);
       void refreshBalance();
       refreshInventory();
     } catch (error) {

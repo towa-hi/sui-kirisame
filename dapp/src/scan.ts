@@ -203,7 +203,7 @@ export const scanScript = /* js */ `
         }
         const rows = [
           ['Color', data.color], ['Status', data.state], ['Purchase price', formatSui(data.purchasePrice)],
-          ['Condition bond', formatSui(data.conditionBond)], ['Usage fee per hour', formatSui((BigInt(data.feePerMs) * 3600000n).toString())],
+          ['Condition bond', formatSui(data.conditionBond)], ['Usage period', '1 day after the 2-minute inspection window'],
           ['Current station', data.station || 'Not docked'], ['Current holder', data.holder || 'None'],
           ['Supplier', data.supplier], ['Checkout count', data.ownerCount], ['Condition funds', data.conditionStatus], ['Object ID', data.objectId],
         ];
@@ -213,7 +213,7 @@ export const scanScript = /* js */ `
         }));
         details.hidden = false;
         explorer.href = 'https://suiscan.xyz/testnet/object/' + encodeURIComponent(data.objectId); explorer.hidden = false;
-        status.textContent = 'Umbrella found · Sui testnet';
+        status.textContent = data.state === 'Sold' ? 'This umbrella has been removed from the system and is permanently yours.' : 'Umbrella found · Sui testnet';
         umbrella = data;
         renderPurchase();
       } catch (failure) {
