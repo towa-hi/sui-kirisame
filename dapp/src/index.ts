@@ -43,6 +43,14 @@ app.route("/api/supply", supplyRoutes(inventory));
 app.route('/api/purchase', purchaseRoutes(sui));
 
 app.route('/api/umbrellas', umbrellaRoutes(sui));
+app.get('/assets/umbrellas/:filename', async c => {
+  const filename = c.req.param('filename');
+  if (!/^(?:rain_kasa_(?:vinyl|black|blue|green|orange|pink|purple|red|yellow)|broken_kasa_vinyl)\.png$/.test(filename)) return c.notFound();
+  const image = await readFile(new URL('../../assets/umbrellas/' + filename, import.meta.url));
+  c.header('Content-Type', 'image/png');
+  c.header('Cache-Control', 'public, max-age=86400');
+  return c.body(image);
+});
 app.get('/assets/barcode-reader.js', async c => {
   const script = await readFile(new URL('../node_modules/@zxing/browser/umd/zxing-browser.min.js', import.meta.url), 'utf8');
   c.header('Content-Type', 'text/javascript; charset=utf-8');

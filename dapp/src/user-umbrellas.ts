@@ -28,7 +28,10 @@ export const userUmbrellasStyles = /* css */ `
   .user-umbrellas-status[data-error="true"] { color: #9a332e; }
   .user-umbrellas-list { display: grid; gap: .7rem; margin: 0; padding: 0; list-style: none; }
   .user-umbrellas-list:empty { display: none; }
-  .user-umbrella-card { padding: .9rem; border: 1px solid #cad4cc; border-radius: .75rem; background: #fff; }
+  .user-umbrella-card { display: flex; align-items: flex-start; gap: .75rem; padding: .9rem; border: 1px solid #cad4cc; border-radius: .75rem; background: #fff; }
+  .user-umbrella-card[data-status="Sold"], .user-umbrella-card[data-status="Retired"] { background: #e8e8e8; }
+  .user-umbrella-icon { flex: 0 0 auto; width: clamp(2.5rem, 10vw, 4rem); height: clamp(2.5rem, 10vw, 4rem); object-fit: contain; }
+  .user-umbrella-details { flex: 1; min-width: 0; }
   .user-umbrella-heading { display: flex; align-items: start; justify-content: space-between; gap: .5rem; }
   .user-umbrella-heading h3 { min-width: 0; margin: 0; font-size: .95rem; overflow-wrap: anywhere; }
   .user-umbrella-badge { flex-shrink: 0; padding: .2rem .5rem; border-radius: 1rem; background: #edf0ec; color: #526358; font-size: .7rem; }
@@ -67,6 +70,17 @@ export const userUmbrellasScript = /* js */ `
   function userUmbrellaCard(item, kind = 'purchase') {
     const card = document.createElement('li');
     card.className = 'user-umbrella-card';
+    card.dataset.status = item.status;
+    const icon = document.createElement('img');
+    icon.className = 'user-umbrella-icon';
+    const color = String(item.color || '').toLowerCase();
+    const iconColor = ['vinyl', 'black', 'blue', 'green', 'orange', 'pink', 'purple', 'red', 'yellow'].includes(color) ? color : 'vinyl';
+    icon.src = '/assets/umbrellas/' + (item.status === 'Quarantined' || item.status === 'Retired' ? 'broken_kasa_vinyl' : 'rain_kasa_' + iconColor) + '.png';
+    icon.alt = '';
+    icon.width = 64;
+    icon.height = 64;
+    const details = document.createElement('div');
+    details.className = 'user-umbrella-details';
     const heading = document.createElement('div');
     heading.className = 'user-umbrella-heading';
     const title = document.createElement('h3');
@@ -84,16 +98,17 @@ export const userUmbrellasScript = /* js */ `
     url.searchParams.set('umbrella', item.objectId);
     link.href = url.href;
     link.textContent = 'Open umbrella';
-    card.append(heading, summary);
+    details.append(heading, summary);
     if (item.status === 'Held') {
       const timer = document.createElement('p');
       timer.className = 'held-umbrella-timer';
       timer.dataset.inspectionDeadlineMs = item.inspectionDeadlineMs;
       timer.dataset.purchasePrice = item.purchasePrice;
       timer.textContent = heldUmbrellaTimerText(item);
-      card.append(timer);
+      details.append(timer);
     }
-    card.append(link);
+    details.append(link);
+    card.append(icon, details);
     return card;
   }
 

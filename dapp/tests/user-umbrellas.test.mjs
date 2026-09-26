@@ -46,8 +46,8 @@ test('wallet lists separate rented and supplied umbrellas and hide deactivated i
   ];
   vm.runInContext('userUmbrellas = new Map(fixtures.map(item => [item.objectId, item])); userUmbrellasLoaded = true; renderUserUmbrellas();', app.context);
   assert.equal(app.element('purchase-umbrellas-list').children.length, 1);
-  assert.equal(app.element('purchase-umbrellas-list').children[0].children[0].children[0].textContent, '<Held> (Black)');
-  assert.equal(app.element('purchase-umbrellas-list').children[0].children[0].children[0].children.length, 0);
+  assert.equal(app.element('purchase-umbrellas-list').children[0].children[1].children[0].children[0].textContent, '<Held> (Black)');
+  assert.equal(app.element('purchase-umbrellas-list').children[0].children[1].children[0].children[0].children.length, 0);
   assert.equal(app.element('supply-umbrellas-list').children.length, 1);
   assert.match(app.element('purchase-umbrellas-status').textContent, /1 deactivated hidden/);
   assert.match(app.element('supply-umbrellas-status').textContent, /1 deactivated hidden/);
