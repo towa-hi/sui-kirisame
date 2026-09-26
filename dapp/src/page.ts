@@ -5,6 +5,7 @@ import { stationMarkup } from './station.js';
 import { adminMarkup, adminOverlay, adminStyles, adminScript } from "./admin.js";
 
 import { supplyMarkup, supplyOverlay, supplyScript } from "./supply.js";
+import { purchaseUmbrellasMarkup, supplyUmbrellasMarkup, userUmbrellasScript, userUmbrellasStyles } from './user-umbrellas.js';
 
 const walletAddressNames = {
   '0x105669645016bc4c9ab09f2941974192150ce63280099580c6f93f4a8c6b92cb': 'alice-supplier',
@@ -105,6 +106,7 @@ export const page = /* html */ `<!doctype html>
       ${adminStyles}
       ${scanStyles}
       ${purchaseMapStyles}
+      ${userUmbrellasStyles}
       #supply-error { color: #9a332e; }
       #supply-error:empty, #supply-result:empty { display: none; }
       #supply-label [hidden] { display: none !important; }
@@ -132,10 +134,12 @@ export const page = /* html */ `<!doctype html>
           <section id="purchase-panel" role="tabpanel" aria-labelledby="purchase-tab">
             <button id="scan-umbrella" type="button" class="umbrella-action">SCAN UMBRELLA</button>
             ${purchaseMapMarkup}
+            ${purchaseUmbrellasMarkup}
             <p class="status">Scan an umbrella’s QR code or barcode to see its details.</p>
           </section>
           <section id="supply-panel" role="tabpanel" aria-labelledby="supply-tab" hidden>
             ${supplyMarkup}
+            ${supplyUmbrellasMarkup}
           </section>
         </div>
       </section>
@@ -158,6 +162,7 @@ export const page = /* html */ `<!doctype html>
       ${supplyScript}
       ${scanScript}
       ${purchaseMapScript}
+      ${userUmbrellasScript}
       const buttons = [...document.querySelectorAll('.connect-wallet')];
       const statuses = [...document.querySelectorAll('.wallet-status')];
       const details = [...document.querySelectorAll('.wallet-details')];

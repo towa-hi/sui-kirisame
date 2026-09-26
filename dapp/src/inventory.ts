@@ -177,6 +177,7 @@ export const inventoryScript = /* js */ `
   }
   function refreshInventory() {
     for (const kind of Object.keys(inventoryLists)) void loadInventory(kind);
+    if (typeof refreshUserUmbrellas === 'function') refreshUserUmbrellas();
   }
   function ensureInventory() {
     for (const [kind, state] of Object.entries(inventoryLists)) if (!state.loaded) void loadInventory(kind);
