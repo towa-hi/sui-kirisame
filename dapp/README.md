@@ -164,3 +164,32 @@ The server verifies station ownership and reads the latest owner count when prep
 the transaction. Move still enforces ownership, inspection timing, and buyback rules.
 Camera denial supports manual umbrella ID entry. Physical camera scanning still
 requires testing on the target device.
+
+
+## Umbrella names and deployment
+
+Umbrellas now store a supplier-provided `name: String` immediately after `supplier`
+in the on-chain object. `user_create_umbrella` takes `(bond, color, name, ctx)`;
+names must contain 1–256 UTF-8 bytes. Cards display `Name (Color)`.
+
+This layout and function signature require a **fresh package publication**, not an
+in-place upgrade of the package currently recorded in `Published.toml`. Before
+running this client against the new contract, set both `KIRISAME_PACKAGE_ID` and
+`KIRISAME_ORIGINAL_PACKAGE_ID` to the new publication and use a fresh inventory
+snapshot/database for it. The checked-in deployment IDs still identify the older
+contract and are not compatible with the new BCS decoder. Existing objects remain
+in their original deployment; this change does not migrate them.
+
+Blank supplier names are assigned `Supplier Umbrella #1`, advancing until the
+name is unused in the database. SQLite records names from every indexed umbrella,
+including retired ones, and retains them through deletion and inventory rebuilds.
+Name allocation is transactional; prepared transactions reserve their names so
+concurrent creations do not get the same default. Cancelled transactions can leave
+gaps. Custom names may repeat. The suggested placeholder is advisory; the final
+name is selected when preparing the signed creation transaction.
+
+Default naming requires inventory sync to be ready; an explicit custom name still
+works with sync disabled. Keep `KIRISAME_INVENTORY_DB` on persistent storage and
+share the same database among processes that allocate names. Separate databases
+cannot coordinate reservations. The contract stores the selected name but does not
+enforce global uniqueness for transactions submitted outside this app.

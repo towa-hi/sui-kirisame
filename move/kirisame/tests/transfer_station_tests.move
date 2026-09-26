@@ -13,7 +13,7 @@ module kirisame::transfer_station_tests {
         transfer::public_transfer(admin, @0xD);
         transfer::public_transfer(cap, @0xA);
         transfer::public_share_object(station);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, b"Test umbrella".to_string(), scenario.ctx());
 
         scenario.next_tx(@0xD);
         assert!(!test_scenario::has_most_recent_for_address<StationCap>(@0xD));

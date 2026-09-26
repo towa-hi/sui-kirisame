@@ -8,7 +8,7 @@ import QRCode from 'qrcode';
 
 // Field order mirrors move/kirisame/sources/kirisame.move.
 export const umbrellaBcs = bcs.struct('Umbrella', {
-  id: bcs.Address, supplier: bcs.Address, color: bcs.u8(),
+  id: bcs.Address, supplier: bcs.Address, name: bcs.string(), color: bcs.u8(),
   state: bcs.enum('UmbrellaState', { Created: null, Docked: null, Held: null, Quarantined: null, Sold: null, Retired: null }),
   current_station_id: bcs.option(bcs.Address), checkout_station_id: bcs.option(bcs.Address), holder: bcs.option(bcs.Address),
   checkout_time_ms: bcs.u64(), inspection_deadline_ms: bcs.u64(), purchase_price: bcs.u64(), fee_per_ms: bcs.u64(), condition_bond: bcs.u64(),
@@ -53,7 +53,7 @@ export function umbrellaRoutes(sui: Pick<SuiGrpcClient, 'getObject'>) {
       }
       const data = umbrellaBcs.parse(object.content);
       return c.json({
-        objectId: object.objectId, network: 'testnet',
+        objectId: object.objectId, name: data.name, network: 'testnet',
         color: ['Vinyl', 'Black', 'White'][data.color] ?? 'Unknown', state: data.state.$kind,
         supplier: data.supplier, station: data.current_station_id, holder: data.holder,
         purchasePrice: data.purchase_price, conditionBond: data.condition_bond,

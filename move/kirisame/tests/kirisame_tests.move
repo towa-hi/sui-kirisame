@@ -8,7 +8,7 @@ module kirisame::kirisame_tests {
         let supplier = @0xA;
         let mut scenario = sui::test_scenario::begin(supplier);
         let bond = sui::coin::mint_for_testing<SUI>(30_000_000, scenario.ctx());
-        umbrella::user_create_umbrella(bond, 0, scenario.ctx());
+        umbrella::user_create_umbrella(bond, 0, b"Test umbrella".to_string(), scenario.ctx());
         scenario.next_tx(supplier);
 
         let umbrella = scenario.take_shared<Umbrella>();
@@ -30,6 +30,7 @@ module kirisame::kirisame_tests {
             fee_per_ms,
         ) = umbrella::snapshot_for_testing(&umbrella);
         assert!(umbrella::color(&umbrella) == 0);
+        assert!(umbrella::name(&umbrella) == &b"Test umbrella".to_string());
         assert!(recorded_supplier == supplier);
         assert!(is_created);
         assert!(pending_condition_owner == option::some(supplier));
@@ -59,7 +60,7 @@ module kirisame::kirisame_tests {
         while (color <= 2) {
             let mut scenario = sui::test_scenario::begin(@0xA);
             let bond = sui::coin::mint_for_testing<SUI>(30_000_000, scenario.ctx());
-            umbrella::user_create_umbrella(bond, color, scenario.ctx());
+            umbrella::user_create_umbrella(bond, color, b"Test umbrella".to_string(), scenario.ctx());
             scenario.next_tx(@0xA);
             let umbrella = scenario.take_shared<Umbrella>();
             assert!(umbrella::color(&umbrella) == color);
@@ -74,20 +75,39 @@ module kirisame::kirisame_tests {
     fun test_create_umbrella_invalid_color() {
         let mut ctx = tx_context::dummy();
         let bond = sui::coin::mint_for_testing<SUI>(30_000_000, &mut ctx);
-        umbrella::user_create_umbrella(bond, 3, &mut ctx);
+        umbrella::user_create_umbrella(bond, 3, b"Test umbrella".to_string(), &mut ctx);
     }
 
     #[test]
     #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
     fun test_create_umbrella_underpayment() {
         let mut ctx = tx_context::dummy();
-        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(29_999_999, &mut ctx), 0, &mut ctx);
+        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(29_999_999, &mut ctx), 0, b"Test umbrella".to_string(), &mut ctx);
     }
 
     #[test]
     #[expected_failure(abort_code = 2, location = kirisame::umbrella)]
     fun test_create_umbrella_overpayment() {
         let mut ctx = tx_context::dummy();
-        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(30_000_001, &mut ctx), 0, &mut ctx);
+        umbrella::user_create_umbrella(sui::coin::mint_for_testing<SUI>(30_000_001, &mut ctx), 0, b"Test umbrella".to_string(), &mut ctx);
     }
+    #[test]
+    #[expected_failure(abort_code = 16, location = kirisame::umbrella)]
+    fun test_create_umbrella_empty_name() {
+        let mut ctx = tx_context::dummy();
+        let bond = sui::coin::mint_for_testing<SUI>(30_000_000, &mut ctx);
+        umbrella::user_create_umbrella(bond, 0, b"".to_string(), &mut ctx);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = 16, location = kirisame::umbrella)]
+    fun test_create_umbrella_long_name() {
+        let mut ctx = tx_context::dummy();
+        let bond = sui::coin::mint_for_testing<SUI>(30_000_000, &mut ctx);
+        let mut bytes = vector[];
+        let mut i = 0;
+        while (i < 257) { bytes.push_back(65); i = i + 1; };
+        umbrella::user_create_umbrella(bond, 0, bytes.to_string(), &mut ctx);
+    }
+
 }

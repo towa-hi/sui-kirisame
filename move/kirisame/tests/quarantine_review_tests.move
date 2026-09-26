@@ -24,7 +24,7 @@ module kirisame::quarantine_review_tests {
     // 4 stale cycle; 5 duplicate decision; 6 decision after payout; 7 non-quarantined.
     fun review_case(mode: u8) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, b"Test umbrella".to_string(), scenario.ctx());
         scenario.next_tx(@0xD);
         let mut asset = scenario.take_shared<Umbrella>();
         let (admin, cap, mut station) = umbrella::station_for_testing(@0xE, scenario.ctx());

@@ -117,7 +117,7 @@ def main():
 
     def umbrella_commands(color):
         return ["--split-coins", "gas", "[30000000]", "--assign", "bond",
-                *call("user_create_umbrella", "bond.0", str(color))]
+                *call("user_create_umbrella", "bond.0", str(color), json.dumps("Bob Toranomon " + ("Black" if color == 1 else "Vinyl")))]
 
     if args.check:
         transact("station", admin, station_commands, True)

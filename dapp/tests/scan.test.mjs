@@ -39,7 +39,7 @@ test('a decoded barcode stops camera, looks up once, and displays details safely
   let calls = 0;
   const app = setup({ fetcher: async url => {
     calls++; assert.equal(url, '/api/umbrellas/' + id);
-    return { ok: true, json: async () => ({ objectId: id, color: '<img onerror=alert(1)>', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', feePerMs: '330', supplier: id, ownerCount: '0', conditionStatus: 'Pending' }) };
+    return { ok: true, json: async () => ({ objectId: id, name: '<img onerror=alert(1)>', color: '<img onerror=alert(1)>', state: 'Docked', purchasePrice: '100000000', conditionBond: '30000000', feePerMs: '330', supplier: id, ownerCount: '0', conditionStatus: 'Pending' }) };
   } });
   await app.open(); app.scan(id); app.scan(id); await tick();
   assert.equal(calls, 1); assert.equal(app.stopped(), 1); assert.equal(app.scannerStopped(), 1);

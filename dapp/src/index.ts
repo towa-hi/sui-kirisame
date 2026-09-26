@@ -39,7 +39,7 @@ const syncTask = inventory ? new InventorySync(inventory,
 app.route("/api/inventory", inventoryRoutes(fetch, inventory));
 app.route("/api/admin", adminRoutes(sui));
 app.route("/api/station", adminRoutes(sui, "station"));
-app.route("/api/supply", supplyRoutes());
+app.route("/api/supply", supplyRoutes(inventory));
 app.route('/api/purchase', purchaseRoutes(sui));
 
 app.route('/api/umbrellas', umbrellaRoutes(sui));

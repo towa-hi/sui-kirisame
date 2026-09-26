@@ -1,11 +1,16 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { bcs } from '@mysten/sui/bcs';
+import { InventoryStore } from '../dist/inventory-store.js';
 import assert from 'node:assert/strict';
 import { supplyRoutes, conditionBond } from '../dist/supply-routes.js';
 import { supplyScript } from '../dist/supply.js';
 import vm from 'node:vm';
 
 const sender = '0x' + '1'.repeat(64);
-const request = body => supplyRoutes().request('/create', {
+const store = new InventoryStore(':memory:');
+store.ready = true;
+after(() => store.close());
+const request = body => supplyRoutes(store).request('/create', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 
@@ -26,6 +31,8 @@ test('all supported colors create an unsigned transaction with the exact conditi
     assert.equal(call.module, 'umbrella');
     assert.deepEqual(call.arguments[0], { NestedResult: [0, 0] });
     assert.equal(Buffer.from(tx.inputs[1].Pure.bytes, 'base64')[0], color);
+    assert.equal(bcs.string().parse(Buffer.from(tx.inputs[2].Pure.bytes, 'base64')), result.name);
+    assert.equal(result.name, 'Supplier Umbrella #' + (color + 1));
   }
 });
 
@@ -69,4 +76,35 @@ test('confirmed creation shows a QR and direct link; failed creation never shows
       assert.equal(element('supply-qr-error').hidden, false);
     } else assert.match(element('supply-error').textContent, /Unable to confirm/);
   }
+});
+
+test('supplier names are trimmed and encoded on chain; blank names use defaults', async () => {
+  for (const name of ['  Rain companion  ', '雨傘', '', '   ']) {
+    const response = await request({ sender, color: 0, name });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    const tx = JSON.parse(result.transaction);
+    assert.equal(bcs.string().parse(Buffer.from(tx.inputs[2].Pure.bytes, 'base64')), result.name);
+    if (name.trim()) assert.equal(result.name, name.trim());
+    else assert.match(result.name, /^Supplier Umbrella #[0-9]+$/);
+  }
+  for (const name of [null, 1, {}, 'x'.repeat(257), '傘'.repeat(86)]) {
+    assert.equal((await request({ sender, color: 0, name })).status, 400);
+  }
+});
+
+test('default creation waits for inventory to avoid assigning an existing name', async () => {
+  const response = await supplyRoutes().request('/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender, color: 0 }) });
+  assert.equal(response.status, 503);
+});
+
+
+test('default suggestions do not reserve names and custom creation works without sync', async () => {
+  const routes = supplyRoutes(store);
+  const first = await (await routes.request('/default-name')).json();
+  const second = await (await routes.request('/default-name')).json();
+  assert.equal(first.name, second.name);
+  const response = await supplyRoutes().request('/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender, color: 0, name: 'Supplier custom name' }) });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).name, 'Supplier custom name');
 });

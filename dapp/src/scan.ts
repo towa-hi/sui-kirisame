@@ -212,7 +212,7 @@ export const scanScript = /* js */ `
           return;
         }
         const rows = [
-          ['Color', data.color], ['Status', data.state], ['Purchase price', formatSui(data.purchasePrice)],
+          ['Name', data.name || 'Supplier Umbrella'], ['Color', data.color], ['Status', data.state], ['Purchase price', formatSui(data.purchasePrice)],
           ['Condition bond', formatSui(data.conditionBond)], ['Usage period', '1 day after the 2-minute inspection window'],
           ['Current station', data.station || 'Not docked'], ['Current holder', data.holder || 'None'],
           ['Supplier', data.supplier], ['Checkout count', data.ownerCount], ['Condition funds', data.conditionStatus], ['Object ID', data.objectId],

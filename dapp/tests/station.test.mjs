@@ -11,7 +11,7 @@ import { page } from '../dist/page.js';
 const sender = '0x' + '1'.repeat(64);
 const parameters = { cap: '0x2', station: '0x3', umbrella: '0x4', expected_owner_count: '18446744073709551615' };
 const id = '0x' + '4'.padStart(64, '0'), stationId = '0x' + '3'.padStart(64, '0');
-const umbrella = { id, supplier: id, color: 1, state: { Docked: true }, current_station_id: stationId, checkout_station_id: null, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '0', last_condition_status: { Pending: true }, checkout_payout_address: null, admin_payout_address: null, owner_count: '18446744073709551615' };
+const umbrella = { id, supplier: id, name: 'Rain companion', color: 1, state: { Docked: true }, current_station_id: stationId, checkout_station_id: null, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '0', last_condition_status: { Pending: true }, checkout_payout_address: null, admin_payout_address: null, owner_count: '18446744073709551615' };
 const station = { id: stationId, display_name: 'Tokyo', location_name: 'Tokyo', latitude_e6: '125680000', longitude_e6: '319760000', payout_address: id, maintenance_reserve: id, admin_payout_address: id, status: { Active: true }, docked_count: '1' };
 const capId = '0x' + '2'.padStart(64, '0');
 const client = {

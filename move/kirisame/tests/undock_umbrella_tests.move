@@ -7,7 +7,7 @@ module kirisame::undock_umbrella_tests {
 
     fun run(state: u8, payment: u64, cycle: u64, wrong_station: bool, duplicate: bool) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, b"Test umbrella".to_string(), scenario.ctx());
         scenario.next_tx(@0xB);
         let mut asset = scenario.take_shared<Umbrella>();
         let (admin, cap, mut station) = umbrella::station_for_testing(@0xC, scenario.ctx());

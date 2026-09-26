@@ -1,10 +1,12 @@
+import vm from 'node:vm';
+import { inventoryScript } from '../dist/inventory.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inventoryRoutes, stationBcs } from '../dist/inventory-routes.js';
 import { umbrellaBcs } from '../dist/umbrella-routes.js';
 const id = '0x' + '1'.repeat(64);
 const station = { id, display_name: '<Station>', location_name: 'Tokyo', latitude_e6: '125680000', longitude_e6: '319760000', payout_address: id, maintenance_reserve: id, admin_payout_address: id, status: { Removing: true }, docked_count: '9007199254740993' };
-const umbrella = { id, supplier: id, color: 1, state: { Quarantined: true }, current_station_id: id, checkout_station_id: id, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '1', last_condition_status: { AwaitingReview: true }, checkout_payout_address: id, admin_payout_address: id, owner_count: '9007199254740993' };
+const umbrella = { id, supplier: id, name: 'Rain companion', color: 1, state: { Quarantined: true }, current_station_id: id, checkout_station_id: id, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '1', last_condition_status: { AwaitingReview: true }, checkout_payout_address: id, admin_payout_address: id, owner_count: '9007199254740993' };
 const payload = (bcs, value, more = false) => ({ data: { objects: { nodes: [{ address: id, asMoveObject: { contents: { bcs: bcs.serialize(value).toBase64() } } }], pageInfo: { hasNextPage: more, endCursor: more ? 'next-page' : null } } } });
 test('inventory filters deployment/type and preserves cursor, coordinates, and large counts', async () => {
   const routes = inventoryRoutes(async (_url, options) => {
@@ -27,6 +29,7 @@ test('umbrella inventory decodes lifecycle and escrow fields', async () => {
   const routes = inventoryRoutes(async () => Response.json(payload(umbrellaBcs, umbrella)));
   const response = await routes.request('/umbrellas');
   const data = await response.json();
+  assert.equal(data.items[0].name, 'Rain companion');
   assert.equal(data.items[0].status, 'Quarantined');
   assert.equal(data.items[0].conditionStatus, 'AwaitingReview');
   assert.equal(data.items[0].pendingCondition, '30000000');
@@ -45,4 +48,16 @@ test('empty inventory succeeds; partial, malformed, and unavailable responses fa
   const routes = inventoryRoutes(async () => { throw new Error('network'); });
   assert.equal((await routes.request('/umbrellas')).status, 502);
   assert.equal((await routes.request('/other')).status, 404);
+});
+
+
+test('umbrella cards render supplier name and parenthesized color as plain text', () => {
+  const element = () => ({ children: [], dataset: {}, append(...children) { this.children.push(...children); }, setAttribute() {}, addEventListener() {} });
+  const context = { document: { createElement: element, getElementById: element }, location: { origin: 'https://example.test' }, URL, formatSui: value => value };
+  vm.createContext(context);
+  vm.runInContext(inventoryScript, context);
+  const card = context.inventoryCard('umbrellas', { ...umbrella, objectId: id, name: '<img onerror=alert(1)>', color: 'Black', status: 'Retired' });
+  const title = card.children[0].children[0];
+  assert.equal(title.textContent, '<img onerror=alert(1)> (Black)');
+  assert.equal(title.children.length, 0);
 });

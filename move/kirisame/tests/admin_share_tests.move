@@ -19,7 +19,7 @@ module kirisame::admin_share_tests {
     // supplier and settlement caller are all distinct.
     fun real_purchase(final_sale: bool) {
         let mut scenario = test_scenario::begin(@0xA);
-        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, scenario.ctx());
+        umbrella::user_create_umbrella(coin::mint_for_testing<SUI>(30_000_000, scenario.ctx()), 0, b"Test umbrella".to_string(), scenario.ctx());
         scenario.next_tx(@0xD);
         let (admin, unused_cap, unused_station) = umbrella::station_for_testing(@0xFE, scenario.ctx());
         transfer::public_transfer(unused_cap, @0xFE);

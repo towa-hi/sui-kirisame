@@ -27,7 +27,7 @@ export const inventoryStyles = /* css */ `
   .inventory-list:focus-visible { outline: 2px solid #557866; outline-offset: 2px; border-radius: .75rem; }
   .inventory-card { min-width: 0; padding: 1rem; border: 1px solid #cad4cc; border-radius: .75rem; background: white; }
   .inventory-card-heading { display: flex; align-items: start; justify-content: space-between; gap: .5rem; }
-  .inventory-card h3 { margin: 0; font-size: .95rem; }
+  .inventory-card h3 { margin: 0; font-size: .95rem; overflow-wrap: anywhere; min-width: 0; }
   .inventory-badge { flex-shrink: 0; font-size: .7rem; padding: .2rem .5rem; border-radius: 1rem; background: #edf0ec; color: #526358; }
   .inventory-badge[data-status="Active"], .inventory-badge[data-status="Docked"] { background: #e4efe6; color: #315e40; }
   .inventory-badge[data-status="Quarantined"], .inventory-badge[data-status="Removing"] { background: #fff0d5; color: #805614; }
@@ -53,7 +53,7 @@ export const inventoryScript = /* js */ `
     const heading = document.createElement('div');
     heading.className = 'inventory-card-heading';
     const title = document.createElement('h3');
-    title.textContent = kind === 'stations' ? item.name || 'Unnamed station' : item.color + ' umbrella';
+    title.textContent = kind === 'stations' ? item.name || 'Unnamed station' : (item.name || 'Supplier Umbrella') + ' (' + item.color + ')';
     const badge = document.createElement('span');
     badge.className = 'inventory-badge';
     badge.dataset.status = item.status;

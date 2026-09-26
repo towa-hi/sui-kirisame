@@ -15,6 +15,10 @@ export const supplyOverlay = /* html */ `
   <form id="supply-form">
     <h2 id="supply-dialog-title">Create umbrella</h2>
     <p id="supply-dialog-description">Register an umbrella to supply to a station.</p>
+    <label class="admin-field" for="umbrella-name">Name
+      <input id="umbrella-name" name="name" maxlength="256" placeholder="Supplier Umbrella #1" aria-describedby="umbrella-name-hint">
+    </label>
+    <p id="umbrella-name-hint">Leave blank for Supplier Umbrella #1, or the next unused number (including retired umbrellas).</p>
     <label class="admin-field" for="umbrella-color">Color
       <select id="umbrella-color" name="color" required>
         <option value="">Choose a color</option>
@@ -41,6 +45,7 @@ export const supplyScript = /* js */ `
   const supplyAccess = document.getElementById('supply-access');
   const supplyForm = document.getElementById('supply-form');
   const supplyConfirm = document.getElementById('supply-confirm');
+  const supplyName = document.getElementById('umbrella-name');
   const supplyColor = document.getElementById('umbrella-color');
   const supplyStatus = document.getElementById('supply-status');
   const supplyError = document.getElementById('supply-error');
@@ -58,6 +63,7 @@ export const supplyScript = /* js */ `
     if (!account && !supplyPending && supplyDialog.open) supplyDialog.close();
     supplyConfirm.disabled = supplyPending || !account;
     supplyColor.disabled = supplyPending;
+    supplyName.disabled = supplyPending;
     supplyConfirm.textContent = supplyPending ? 'Creating…' : 'Create umbrella';
     supplyForm.setAttribute('aria-busy', String(supplyPending));
     if (!supplyPending) supplyStatus.textContent = account ? 'Testnet · 0.03 SUI bond + gas' : 'Connect Slush Wallet to create an umbrella on testnet.';
@@ -68,6 +74,9 @@ export const supplyScript = /* js */ `
     supplyError.textContent = '';
     renderSupplyAccess();
     supplyDialog.showModal();
+    void fetch('/api/supply/default-name', { signal: AbortSignal.timeout(10000) })
+      .then(async response => { supplyName.placeholder = response.ok ? (await response.json()).name : 'Automatic numbered name'; })
+      .catch(() => { supplyName.placeholder = 'Automatic numbered name'; });
   });
   supplyCancel.addEventListener('click', () => { if (!supplyPending) supplyDialog.close(); });
   supplyDialog.addEventListener('cancel', event => { if (supplyPending) event.preventDefault(); });
@@ -83,6 +92,7 @@ export const supplyScript = /* js */ `
     event.preventDefault();
     if (supplyPending || !account || !supplyForm.reportValidity()) return;
     const color = Number(supplyColor.value);
+    const name = supplyName.value.trim();
     supplyError.textContent = '';
     supplyResult.textContent = '';
     supplyLabel.hidden = true;
@@ -98,11 +108,12 @@ export const supplyScript = /* js */ `
       if (!signingAccount.chains.includes('sui:testnet')) throw new Error('Switch your wallet to Sui testnet.');
       const response = await fetch('/api/supply/create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender: signingAccount.address, color }), signal: AbortSignal.timeout(30000),
+        body: JSON.stringify({ sender: signingAccount.address, color, name }), signal: AbortSignal.timeout(30000),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to prepare the transaction.');
       if (account !== signingAccount || activeWallet !== signingWallet) throw new Error('The wallet changed. Please confirm again.');
+      supplyName.value = result.name;
       supplyStatus.textContent = 'Awaiting approval in Slush…';
       const signed = await feature.signAndExecuteTransaction({
         transaction: { toJSON: async () => result.transaction }, account: signingAccount, chain: 'sui:testnet',

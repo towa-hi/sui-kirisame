@@ -10,7 +10,7 @@ import { umbrellaBcs } from '../dist/umbrella-routes.js';
 import { originalId, packageId } from '../dist/deployment.js';
 const id = '0x' + '1'.repeat(64);
 const station = { id, display_name: '<Station>', location_name: 'Tokyo', latitude_e6: '125680000', longitude_e6: '319760000', payout_address: id, maintenance_reserve: id, admin_payout_address: id, status: { Removing: true }, docked_count: '9007199254740993' };
-const umbrella = { id, supplier: id, color: 1, state: { Quarantined: true }, current_station_id: id, checkout_station_id: id, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '1', last_condition_status: { AwaitingReview: true }, checkout_payout_address: id, admin_payout_address: id, owner_count: '9007199254740993' };
+const umbrella = { id, supplier: id, name: 'Rain companion', color: 1, state: { Quarantined: true }, current_station_id: id, checkout_station_id: id, holder: null, checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000', active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id, last_condition_amount: '30000000', last_condition_cycle: '1', last_condition_status: { AwaitingReview: true }, checkout_payout_address: id, admin_payout_address: id, owner_count: '9007199254740993' };
 
 const state = () => ({ scope: 'test', checkpoint: 10, createdAt: Date.now(), cursors: {} });
 const node = (value = station) => ({ address: value.id, asMoveObject: { contents: { bcs: stationBcs.serialize(value).toBase64() } } });
@@ -178,4 +178,29 @@ test('catch-up scans empty filtered pages before declaring the database ready', 
     assert.equal(caughtUp, true);
     assert.equal(db.state().cursors[packageId], 'latest-cursor');
   } finally { db.close(); }
+});
+
+
+test('default names skip retired and custom names and survive deletion, rebuild and restart', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'kirisame-names-'));
+  const path = join(directory, 'inventory.sqlite');
+  let db = new InventoryStore(path);
+  try {
+    const retired = { ...umbrella, name: 'Supplier Umbrella #1', state: { Retired: true } };
+    db.replace([{ id, version: '1', kind: 'umbrellas', node: { address: id, asMoveObject: { contents: { bcs: umbrellaBcs.serialize(retired).toBase64() } } } }], state());
+    assert.equal(db.list('umbrellas', null).items[0].name, retired.name);
+    assert.equal(db.reserveUmbrellaName('Supplier Umbrella #2'), 'Supplier Umbrella #2');
+    assert.equal(db.reserveUmbrellaName(''), 'Supplier Umbrella #3');
+    db.apply([{ id, version: '2' }], 'stream', 'deleted');
+    db.replace([], state());
+    db.close();
+    db = new InventoryStore(path);
+    assert.equal(db.reserveUmbrellaName(''), 'Supplier Umbrella #4');
+    // Two connections preparing transactions cannot choose the same default.
+    const other = new InventoryStore(path);
+    try {
+      assert.equal(other.reserveUmbrellaName(''), 'Supplier Umbrella #5');
+      assert.equal(db.reserveUmbrellaName(''), 'Supplier Umbrella #6');
+    } finally { other.close(); }
+  } finally { db.close(); rmSync(directory, { recursive: true }); }
 });

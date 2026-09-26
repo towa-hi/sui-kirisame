@@ -8,7 +8,7 @@ import QRCode from 'qrcode';
 
 const id = '0x' + '1'.repeat(64);
 const value = {
-  id, supplier: id, color: 1, state: { Docked: true },
+  id, supplier: id, name: 'Rain companion', color: 1, state: { Docked: true },
   current_station_id: id, checkout_station_id: null, holder: null,
   checkout_time_ms: '0', inspection_deadline_ms: '0', purchase_price: '100000000', fee_per_ms: '330', condition_bond: '30000000',
   active_escrow: '0', pending_condition: '30000000', pending_condition_owner: id,
@@ -25,6 +25,7 @@ test('lookup decodes contract data without losing integer precision', async () =
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   const data = await response.json();
+  assert.equal(data.name, 'Rain companion');
   assert.equal(data.color, 'Black'); assert.equal(data.state, 'Docked');
   assert.equal(data.station, id); assert.equal(data.holder, null);
   assert.equal(data.purchasePrice, '100000000'); assert.equal(data.ownerCount, '9007199254740993');

@@ -6,7 +6,7 @@ import { inventoryItem, type InventoryKind, type InventoryNode } from './invento
 export type InventoryWrite = { id: string; version: string; kind?: InventoryKind; node?: InventoryNode };
 export type SyncState = { scope: string; checkpoint: number; createdAt: number; cursors: Record<string, string> };
 
-/** Rebuildable read model. Chain validation remains in the transaction routes. */
+/** Chain read model plus durable name reservations for concurrent supply requests. */
 export class InventoryStore {
   readonly db: DatabaseSync;
   ready = false;
@@ -15,7 +15,23 @@ export class InventoryStore {
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, version TEXT NOT NULL, kind TEXT, item TEXT);
+      CREATE TABLE IF NOT EXISTS umbrella_names (name TEXT PRIMARY KEY);
       CREATE TABLE IF NOT EXISTS sync_state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL);`);
+    this.db.exec(`INSERT OR IGNORE INTO umbrella_names SELECT json_extract(item, '$.name') FROM inventory
+      WHERE kind='umbrellas' AND json_extract(item, '$.name') IS NOT NULL;`);
+  }
+  nextUmbrellaName(): string {
+    let number = 1;
+    while (this.db.prepare('SELECT 1 FROM umbrella_names WHERE name=?').get(`Supplier Umbrella #${number}`)) number++;
+    return `Supplier Umbrella #${number}`;
+  }
+  reserveUmbrellaName(requested: string): string {
+    let name = requested;
+    this.atomic(() => {
+      if (!name) name = this.nextUmbrellaName();
+      this.db.prepare('INSERT OR IGNORE INTO umbrella_names VALUES (?)').run(name);
+    });
+    return name;
   }
   state(): SyncState | undefined {
     const row = this.db.prepare('SELECT value FROM sync_state WHERE id=1').get();
@@ -33,7 +49,9 @@ export class InventoryStore {
     if (previous && BigInt(previous.version as string) >= BigInt(change.version)) return;
     if (!change.kind && !previous) return; // unrelated deleted object
     const kind = change.kind ?? previous!.kind as InventoryKind;
-    const item = change.node ? JSON.stringify(inventoryItem(kind, change.node)) : null;
+    const data = change.node ? inventoryItem(kind, change.node) : null;
+    if (kind === 'umbrellas' && data?.name) this.db.prepare('INSERT OR IGNORE INTO umbrella_names VALUES (?)').run(data.name);
+    const item = data ? JSON.stringify(data) : null;
     this.db.prepare('INSERT OR REPLACE INTO inventory VALUES (?, ?, ?, ?)').run(change.id, change.version, kind, item);
   }
   replace(changes: InventoryWrite[], state: SyncState) {
