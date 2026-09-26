@@ -66,7 +66,14 @@ include a transaction link so the outcome can be checked before retrying.
 The default package is the testnet deployment in `move/kirisame/Published.toml`.
 Running `move/kirisame/publish-and-init.sh` automatically updates the defaults in
 `dapp/src/deployment.ts` after a successful publish (requires Python 3.11+).
-It also refreshes the root README's deployment link. The app footer reads the
+It also refreshes the root README's deployment link, then creates `Toranomon Station`
+and `EthGlobal Station`, both owned by `station`. Each receives one Black and one
+Vinyl umbrella supplied by `alice-supplier`, with both umbrellas docked automatically.
+Initialization is included in the shell script and uses the local `mono`, `station`,
+and `alice-supplier` signing accounts. Both stations use the existing approximate
+Toranomon demo coordinates. Transaction logs and a result JSON are saved in a printed
+temporary directory; inspect them before retrying if initialization fails partway.
+The app footer reads the
 configured package ID directly, so it follows deployment updates and environment
 overrides without the script editing the page.
 Rebuild and restart the app to use the new defaults, or commit the updated

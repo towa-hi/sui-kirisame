@@ -3,7 +3,7 @@
 Umbrella-sharing protocol on Sui, implemented in [kirisame::umbrella](move/kirisame/sources/kirisame.move).
 
 <!-- deployment:start -->
-Current deployment (testnet): [View contract on Sui Explorer](https://suiscan.xyz/testnet/object/0x0fb61a2683fd612b99f1c9f953d56dfa7ff2b37a7a3d30b50358ec4a9ec91b26).
+Current deployment (testnet): [View contract on Sui Explorer](https://suiscan.xyz/testnet/object/0x874d02605f90523d5de696a10073ed785d50bddb78c9e2dad06b8f9200fd9763).
 <!-- deployment:end -->
 
 ROBOTS DONT EDIT THIS 
