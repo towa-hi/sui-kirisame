@@ -1,6 +1,3 @@
-/// kirisame::umbrella is smart contract designed to create a way for users to purchase and 
-/// return semi-fungible real world objects from a managed pool of stations. 
-/// For more information, please refer to the repository at github.com/towa-hi/sui-kirisame
 module kirisame::umbrella {
     use sui::balance::Balance;
     use sui::sui::SUI;
@@ -39,7 +36,7 @@ module kirisame::umbrella {
         id: UID,
         supplier: address,
         name: String,
-        /// Client color mapping: 0 = vinyl, 1 = black, 2 = white.
+        /// 0 = vinyl, 1 = black, 2 = white.
         color: u8,
         state: UmbrellaState,
         current_station_id: Option<ID>,
@@ -76,7 +73,7 @@ module kirisame::umbrella {
         latitude_e6: u64,
         longitude_e6: u64,
         payout_address: address,
-        // Fixed at station creation; operators cannot redirect forfeited holds.
+        // Fixed at creation so operators cannot redirect forfeited holds.
         maintenance_reserve: address,
         admin_payout_address: address,
         status: StationStatus,
@@ -104,8 +101,8 @@ module kirisame::umbrella {
     const ERevokedStationCap: u64 = 15;
     const EInvalidName: u64 = 16;
 
-    /// Demo amounts in MIST (1 SUI = 1_000_000_000 MIST).
     const ADMIN_PERCENT: u64 = 10;
+    // Prices are in MIST (1 SUI = 1_000_000_000 MIST).
     const PURCHASE_PRICE: u64 = 100_000_000;
     const CONDITION_BOND: u64 = 30_000_000;
     const USAGE_PERIOD_MS: u64 = 86_400_000;
@@ -118,7 +115,6 @@ module kirisame::umbrella {
         );
     }
 
-    /// Create a new station and give its payout address the station capability.
     public fun admin_create_station(
         admin: &AdminCap,
         display_name: String,
@@ -150,8 +146,6 @@ module kirisame::umbrella {
         transfer::transfer(cap, payout_address);
     }
 
-    /// Rotate station authority and future payouts without the previous StationCap.
-    /// Only the station's currently recorded capability is authorized.
     public fun admin_transfer_station(
         _admin: &AdminCap,
         station: &mut Station,
@@ -170,10 +164,6 @@ module kirisame::umbrella {
         assert!(object::id(cap) == station.authorized_cap, ERevokedStationCap);
     }
 
-    /// Disable station operations immediately. Removal completes only after all
-    /// docked umbrellas have been retired with admin_retire_station_umbrella.
-    /// Repeated calls are harmless; the station record remains for past payouts
-    /// and quarantine reviews. No StationCap is needed or trusted for removal.
     public fun admin_remove_station(_admin: &AdminCap, station: &mut Station) {
         station.status = if (station.docked_count == 0) {
             StationStatus::Removed
@@ -182,9 +172,6 @@ module kirisame::umbrella {
         };
     }
 
-    /// Mandatory removal step, composable in bounded PTBs. The tracked count
-    /// prevents omission from completing removal. Refund rather than confiscate
-    /// the docked item's pending hold, preserving the recorded condition history.
     public fun admin_retire_station_umbrella(
         _admin: &AdminCap,
         station: &mut Station,
@@ -213,8 +200,6 @@ module kirisame::umbrella {
 
     public fun station_docked_count(station: &Station): u64 { station.docked_count }
 
-    /// Posts the supplier's condition bond and creates an umbrella awaiting deposit.
-    /// Color: 0 = vinyl, 1 = black, 2 = white.
     public fun user_create_umbrella(bond: Coin<SUI>, color: u8, name: String, ctx: &mut TxContext) {
         assert!(color <= 2, EInvalidColor);
         assert!(name.length() > 0 && name.length() <= 256, EInvalidName);
@@ -248,7 +233,6 @@ module kirisame::umbrella {
 
     public fun color(umbrella: &Umbrella): u8 { umbrella.color }
 
-    /// Station attests physical receipt of a new umbrella or an eligible return.
     public fun station_dock_umbrella(
         cap: &StationCap,
         station: &mut Station,
@@ -262,7 +246,7 @@ module kirisame::umbrella {
         assert!(umbrella.owner_count == expected_owner_count, EStaleOwnerCount);
         match (umbrella.state) {
             UmbrellaState::Created => {
-                // First deposit keeps the supplier's condition bond intact.
+                // First deposit keeps the supplier's bond intact.
             },
             UmbrellaState::Held => {
                 let now = clock.timestamp_ms();
@@ -275,7 +259,6 @@ module kirisame::umbrella {
                 };
 
                 pay_pending_condition(umbrella, ctx);
-                // Quotient/remainder arithmetic floors shares without overflowing.
                 let proceeds = pay_admin_share(umbrella, usage, ctx);
                 let supplier_share = share(proceeds, 70);
                 let checkout_share = share(proceeds, 15);
@@ -311,7 +294,6 @@ module kirisame::umbrella {
         station.docked_count = station.docked_count + 1;
     }
 
-    /// Buyer purchases a docked umbrella and begins its inspection window.
     public fun user_undock_umbrella(
         station: &mut Station,
         umbrella: &mut Umbrella,
@@ -326,7 +308,7 @@ module kirisame::umbrella {
         assert!(umbrella.current_station_id == option::some(object::id(station)), EWrongStation);
         assert!(payment.value() == umbrella.purchase_price, EInvalidPayment);
 
-        // The prior condition hold remains pending through this inspection.
+        // Keep the previous owner's hold pending through inspection.
         umbrella.active_escrow.join(payment.into_balance());
         umbrella.holder = option::some(ctx.sender());
         umbrella.checkout_payout_address = option::some(station.payout_address);
@@ -339,9 +321,6 @@ module kirisame::umbrella {
         station.docked_count = station.docked_count - 1;
     }
 
-    /// Station attests an inspection-window rejection, including wear or
-    /// undesirability. Refunds the buyer in full and freezes the prior hold for
-    /// the admin's final circulation-suitability review during collection.
     public fun station_quarantine_umbrella(
         cap: &StationCap,
         station: &Station,
@@ -364,10 +343,7 @@ module kirisame::umbrella {
         umbrella.state = UmbrellaState::Quarantined;
     }
 
-    /// Final review by the admin collecting quarantined umbrellas from any station.
-    /// Approving the refund queues the prior hold for the existing sweep.
-    /// Otherwise, unsuitability for circulation forfeits it to the fixed reserve.
-    /// Neither outcome reactivates the umbrella or determines who caused its condition.
+    /// Approved refunds are paid by admin_settle_pending_payments.
     public fun admin_review_quarantined_umbrella(
         _admin: &AdminCap,
         station: &Station,
@@ -390,8 +366,6 @@ module kirisame::umbrella {
         };
     }
 
-    /// Permanently retire a collected quarantine record after its money is settled.
-    /// Preserves identity, supplier and condition history; clears station inventory.
     public fun admin_retire_umbrella(
         _admin: &AdminCap,
         umbrella: &mut Umbrella,
@@ -410,13 +384,6 @@ module kirisame::umbrella {
         umbrella.state = UmbrellaState::Retired;
     }
 
-    /// Periodic sweep primitive: call once per discovered shared umbrella (or
-    /// compose bounded PTBs). Sui cannot enumerate shared objects inside Move.
-    /// Releases the prior condition hold once inspection ends, without changing
-    /// the current purchase or its timer. Also finalizes zero-buyback purchases.
-    /// Also pays admin-approved quarantined holds; unresolved reviews stay frozen.
-    /// Skips other states and open inspections; repeated calls cannot pay twice.
-    /// Sold records retain the final buyer and prior condition result.
     public fun admin_settle_pending_payments(
         _admin: &AdminCap,
         umbrella: &mut Umbrella,
@@ -454,7 +421,7 @@ module kirisame::umbrella {
         umbrella.state = UmbrellaState::Sold;
     }
 
-    // Use u128 to preserve an exact one-day period without per-ms rounding or overflow.
+    // Multiply before dividing to avoid per-ms rounding; u128 prevents overflow.
     fun usage_fee(umbrella: &Umbrella, now: u64): u64 {
         if (now <= umbrella.inspection_deadline_ms) return 0;
         let elapsed = (now - umbrella.inspection_deadline_ms).min(USAGE_PERIOD_MS);
@@ -495,8 +462,6 @@ module kirisame::umbrella {
         }
     }
 
-    /// Take 10% of earned revenue only. Refunds, condition funds and reserve
-    /// forfeitures are excluded. Floor in MIST; the station receives split dust.
     fun pay_admin_share(umbrella: &mut Umbrella, revenue: u64, ctx: &mut TxContext): u64 {
         let amount = share(revenue, ADMIN_PERCENT);
         if (amount > 0) {
@@ -505,6 +470,7 @@ module kirisame::umbrella {
         revenue - amount
     }
 
+    // Split the multiplication to avoid overflow while rounding down.
     fun share(amount: u64, percent: u64): u64 {
         (amount / 100) * percent + (amount % 100) * percent / 100
     }
@@ -590,7 +556,6 @@ module kirisame::umbrella {
         )
     }
 
-    /// Read private fields for tests without adding a production API.
     #[test_only]
     public(package) fun snapshot_for_testing(umbrella: &Umbrella): (
         address,
