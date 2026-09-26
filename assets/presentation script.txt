@@ -1,0 +1,61 @@
+
+
+Hi, my name is mono and I'm a japan based developer and the chief tech guy at Scrying Stone, a web3 marketing company. 
+
+I'm presenting Kirisame. It's a smart contract and dapp built on Sui that uses web3 principles to provide a fairer alternative to pay-as-you-go rental apps. 
+
+In Japan, you'll see stations like this everywhere. The idea is that you install the app, plug in your credit card and scan to unlock a thing that you have to return later. They can be really useful in a pinch, but they have a lot of downsides.
+
+First of all, you need to download an app, make an account and put your card in just to start using it. 
+Then there's the risk of the station not even having the thing you want to rent.
+Then, after you got it, if you get a defective one, You're out of luck.
+Then, when you're done, if you forget to return it, or you lose it, the fees can get ridiculous.
+And finally, you better hope there's a station to return it to that's run by the same company.
+
+All these problems exist because the rental model is centralized. The company takes on risk by lending. The user takes on risk by borrowing.
+
+Kirisame solves these problems by using web3 to flip the model over. Instead of renting, Kirisame users buy their items upfront, and return them later to recieve a delayed prorated refund. It won't work for something like a car, but I'd rather spend a thousand yen on a charge bank or umbrella up front than deal with the possibility of oweing four thousand the next morning because there weren't any return stations near my house.
+
+I know you're probably thinking "well why dont you just buy a umbrella from a combini if it costs the same"
+
+
+I don't need any more umbrellas man. I have 6. I want the option to return stuff I don't use but I dont want to deal with being literally indebted to an umbrella company. 
+
+Let me share with you two user stories. Alice is using a certain Japanese umbrella sharing app. Bob is using Kirisame.
+
+It's raining. Alice needs an umbrella.
+Alice goes to the closest rental station, installs the app, plugs in her card info and scans the QR code to take an umbrella.
+The app charges alice an initial fee and the clock starts ticking. By using the app, she's implicitly agreed to the terms and services and is now in actual debt to an umbrella company until she returns it to a compatible station.
+Alice returns the umbrella, and she pays off whatever she owes
+
+Ok, here's Bob's story
+
+It's raining. Bob needs an umbrella
+Bob goes to the closest Kirisame station and picks an umbrella and scans the QR code on it.
+The code automatically opens kirisame in Sui's slush wallet and asks if he wants to purchase the umbrella.
+Bob accepts the transaction. The umbrella is now in his posession and bob's money is held in held in escrow.
+Bob has a five minute window to inspect the umbrella for any defects. It's like when you rent a car and they make you walk around it to check for damage. 
+If the umbrella is in bad condition, bob puts it into a one-way quarantine bin, and the station sends a transaction to give bob a full refund so he can get another one.
+If the umbrella is fine, and the inspection period ends, bob has effectively purchased the umbrella. It is now his property. 
+Bob uses the umbrella, and then returns the umbrella at another before his prorated refund hits zero. 
+Bobs refund gets issued when the next user, Carl inspects and starts using the umbrella that was formerly his. The rest of the money is split between the the admin, the supplier and the stations he used.
+
+Essentially, the difference between these two stories is where the liability is. Bob doesn't owe anyone anything. Alice has all the liability shoved on her to cover the risk of loss. Web2 and wireless payments is what makes the rental system possible, but web3 can offer something way better. Something as simple as being able to offer a refund programmatically opens a lot of doors.
+
+Remember when I said supplier? Kirisame doesn't just improve the experience for the user. It also uses a uniquely web3 solution to reduce operational expenses by allowing people to replenish the supply of rentable items in exchange for a perpetual cut on the profits. We are using market incentives to solve the migrating inventory problem that all one-way rental schemes have to deal with.
+
+Here's a user story for you
+
+Alice has an umbrella and a dream of a small trickle of passive income.
+She registers the umbrella by paying the supplier bond and gets a QR code from the kirisame app 
+Now all she has to do is dock it somewhere that needs it and wait. If the umbrella gets used, she collects a cut of the profits until it reaches the end of it's natural lifecycle.
+If the umbrella stays unused, she'll have to move it somewhere that actually needs it.
+If someone buys it outright, she gets her bond back.
+
+There's a lot more that I don't have time to get into, like how stations are incentivized to provide a usable service or what ends up happening to quarantined umbrellas. Kirisame's design principles can be found in the constitution document that lays out how admins, stations, suppliers and users interact. 
+
+
+Kirisame was built on the sui chain because it was uniquely suited for stateful object based systems that require fine grained access control. The demo is currently up and operational with two stations and a four umbrellas modelled. You can scan the QR codes in the admin panel to try it out yourself. 
+
+
+Thanks for listening to my presentation. If you want to know more or if you want to make this real, follow me on twitter at mono_at_home
